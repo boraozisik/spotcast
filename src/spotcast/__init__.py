@@ -1,25 +1,40 @@
-import sys
 import pandas as pd
+import requests
+
+
+def fetch_forecast(latitude: float, longitude: float) -> pd.DataFrame:
+    url = "https://api.open-meteo.com/v1/forecast"
+    params = {
+        "latitude": latitude,
+        "longitude": longitude,
+        "hourly": ["wind_speed_10m", "wind_direction_10m"],
+        "wind_speed_unit": "kn",
+        "timezone": "Europe/Istanbul",
+    }
+    response = requests.get(url, params=params, timeout=10)
+    # 1) raise an error if the request failed
+    response.raise_for_status()
+
+    # 2) parse the JSON
+    data = response.json()
+
+    df = pd.DataFrame(data["hourly"])
+
+    df["time"] = pd.to_datetime(df["time"])
+
+    return df
 
 
 def main() -> None:
-    print(f"Python sürümü: {sys.version.split()[0]}")
-    print(f"pandas sürümü: {pd.__version__}")
+    try:
+        df = fetch_forecast(37.86, 27.26)
+    except requests.RequestException as error:
+        print(f"Could not fetch forecast: {error}")
+        return
 
-    spotlar = pd.DataFrame(
-        {
-            "spot": ["Kuşadası Pamucak", "Alaçatı", "Akyaka"],
-            "spor": ["kano", "windsurf", "kitesurf"],
-            "ruzgar_knot": [8, 18, 22],
-        }
-    )
-    print(spotlar)
-    print('******************')
-    print(spotlar["ruzgar_knot"].mean())
-    print('******************')
-    print(spotlar[spotlar["ruzgar_knot"] > 10])
-    print('******************')
-    print(spotlar.sort_values("ruzgar_knot", ascending=False))
+    print(df.head())
+    print("*********")
+    print(df.dtypes)
 
 
 if __name__ == "__main__":
