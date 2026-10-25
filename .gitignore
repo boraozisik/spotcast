@@ -11,3 +11,9 @@ wheels/
 
 # Claude Code proje notları (kişisel, GitHub'a gitmesin)
 CLAUDE.md
+
+# Local data files (fetched from APIs, can be regenerated)
+data/
+
+# Secrets (database password etc.)
+.env
