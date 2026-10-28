@@ -20,15 +20,27 @@ GOOD_WIND_MAX_KN = 25
 GOOD_WAVE_MAX_M = 1.0
 
 
+def is_unsafe(wind_kn: float, wave_m: float, is_day: bool) -> bool:
+    """True if conditions are dangerous for an intermediate windsurfer.
+
+    These are hard safety limits. They are used both for labeling and as a guardrail
+    on top of the model, so a model mistake can never call dangerous conditions "good".
+    Low wind is not here on purpose: it means "nothing to do", not "dangerous".
+    """
+    # Sailing in the dark is unsafe for everyone: nobody can see you if you fall.
+    if not is_day:
+        return True
+    return wind_kn > MAX_WIND_KN or wave_m >= MAX_WAVE_M
+
+
 def label_windsurf_intermediate(wind_kn: float, wave_m: float, is_day: bool) -> str:
     """Return "good", "marginal" or "bad" for an intermediate windsurfer.
 
     Danger is checked first, so the worst condition always wins.
     """
-    # Sailing in the dark is unsafe for everyone: nobody can see you if you fall.
-    if not is_day:
+    if is_unsafe(wind_kn, wave_m, is_day):
         return "bad"
-    if wind_kn < MIN_WIND_KN or wind_kn > MAX_WIND_KN or wave_m >= MAX_WAVE_M:
+    if wind_kn < MIN_WIND_KN:
         return "bad"
     if GOOD_WIND_MIN_KN <= wind_kn <= GOOD_WIND_MAX_KN and wave_m <= GOOD_WAVE_MAX_M:
         return "good"
