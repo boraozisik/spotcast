@@ -17,3 +17,6 @@ data/
 
 # Secrets (database password etc.)
 .env
+
+# Trained model files (can be regenerated with `uv run spotcast`)
+models/

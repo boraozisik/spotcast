@@ -8,6 +8,7 @@ authors = [
 ]
 requires-python = ">=3.12"
 dependencies = [
+    "joblib>=1.6.0",
     "pandas>=3.1.0",
     "psycopg[binary]>=3.3.6",
     "pyarrow>=26.0.0",
@@ -23,3 +24,11 @@ spotcast = "spotcast:main"
 [build-system]
 requires = ["uv_build>=0.13.5,<0.14.0"]
 build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "pytest>=9.2.0",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

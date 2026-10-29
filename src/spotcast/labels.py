@@ -1,57 +1,50 @@
 """Rule-based suitability labels (our "ground truth" for training).
 
-These thresholds are assumptions, not facts. They are kept here as constants so they
-are easy to find, discuss and change.
+The rules are the same for every sport; the numbers come from an ActivityProfile.
 """
 
 import pandas as pd
 
-# Intermediate windsurfer thresholds
-# Below this there isn't enough wind to sail. Not dangerous, but "don't go", so "bad".
-MIN_WIND_KN = 10
-# Above this it gets risky for an intermediate rider (strong gusts, hard to control).
-MAX_WIND_KN = 28
-# Waves at or above this height are dangerous for an intermediate rider.
-MAX_WAVE_M = 2.0
-
-# The "good" window: comfortable planing conditions with small waves
-GOOD_WIND_MIN_KN = 15
-GOOD_WIND_MAX_KN = 25
-GOOD_WAVE_MAX_M = 1.0
+from spotcast.profiles import ActivityProfile
 
 
-def is_unsafe(wind_kn: float, wave_m: float, is_day: bool) -> bool:
-    """True if conditions are dangerous for an intermediate windsurfer.
+def is_unsafe(
+    profile: ActivityProfile, wind_kn: float, wave_m: float, is_day: bool
+) -> bool:
+    """True if conditions are dangerous for this sport and level.
 
     These are hard safety limits. They are used both for labeling and as a guardrail
     on top of the model, so a model mistake can never call dangerous conditions "good".
     Low wind is not here on purpose: it means "nothing to do", not "dangerous".
     """
-    # Sailing in the dark is unsafe for everyone: nobody can see you if you fall.
+    # Being on the water in the dark is unsafe for everyone: nobody can see you.
     if not is_day:
         return True
-    return wind_kn > MAX_WIND_KN or wave_m >= MAX_WAVE_M
+    return wind_kn > profile.max_wind_kn or wave_m >= profile.max_wave_m
 
 
-def label_windsurf_intermediate(wind_kn: float, wave_m: float, is_day: bool) -> str:
-    """Return "good", "marginal" or "bad" for an intermediate windsurfer.
+def label_conditions(
+    profile: ActivityProfile, wind_kn: float, wave_m: float, is_day: bool
+) -> str:
+    """Return "good", "marginal" or "bad" for this sport and level.
 
     Danger is checked first, so the worst condition always wins.
     """
-    if is_unsafe(wind_kn, wave_m, is_day):
+    if is_unsafe(profile, wind_kn, wave_m, is_day):
         return "bad"
-    if wind_kn < MIN_WIND_KN:
+    if wind_kn < profile.min_wind_kn:
         return "bad"
-    if GOOD_WIND_MIN_KN <= wind_kn <= GOOD_WIND_MAX_KN and wave_m <= GOOD_WAVE_MAX_M:
+    good_wind = profile.good_wind_min_kn <= wind_kn <= profile.good_wind_max_kn
+    if good_wind and wave_m <= profile.good_wave_max_m:
         return "good"
     return "marginal"
 
 
-def add_labels(df: pd.DataFrame) -> pd.DataFrame:
-    """Return a copy of the conditions table with a "label" column added."""
+def add_labels(df: pd.DataFrame, profile: ActivityProfile) -> pd.DataFrame:
+    """Return a copy of the conditions table with a "label" column for this profile."""
     labeled = df.copy()
     labeled["label"] = [
-        label_windsurf_intermediate(wind, wave, day)
+        label_conditions(profile, wind, wave, day)
         for wind, wave, day in zip(
             df["wind_speed_10m"], df["wave_height"], df["is_day"]
         )

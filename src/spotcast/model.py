@@ -1,12 +1,19 @@
-"""Training and evaluating the suitability classifier."""
+"""Training, evaluating, saving and using the suitability classifier."""
 
+from pathlib import Path
+from typing import Any
+
+import joblib
 import pandas as pd
+import sklearn
 from sklearn.base import ClassifierMixin
 from sklearn.dummy import DummyClassifier
 from sklearn.metrics import accuracy_score, classification_report, confusion_matrix
 from sklearn.tree import DecisionTreeClassifier, export_text
 
+from spotcast.config import MODELS_DIR
 from spotcast.labels import is_unsafe
+from spotcast.profiles import ActivityProfile
 
 FEATURES = [
     "wind_speed_10m",
@@ -42,11 +49,13 @@ def train_tree(
     return tree.fit(X_train, y_train)
 
 
-def predict_with_guardrail(model: ClassifierMixin, X: pd.DataFrame) -> list[str]:
-    """Model predictions, but unsafe conditions are always forced to "bad"."""
+def predict_with_guardrail(
+    model: ClassifierMixin, X: pd.DataFrame, profile: ActivityProfile
+) -> list[str]:
+    """Model predictions, but unsafe conditions for this profile are always "bad"."""
     predictions = model.predict(X)
     return [
-        "bad" if is_unsafe(wind, wave, day) else prediction
+        "bad" if is_unsafe(profile, wind, wave, day) else prediction
         for prediction, wind, wave, day in zip(
             predictions, X["wind_speed_10m"], X["wave_height"], X["is_day"]
         )
@@ -81,3 +90,57 @@ def show_tree(tree: DecisionTreeClassifier) -> None:
     importances = pd.Series(tree.feature_importances_, index=FEATURES)
     print("Feature importance (share of the tree's decisions):")
     print(importances.sort_values(ascending=False).round(3))
+
+
+def model_path(profile: ActivityProfile, models_dir: Path = MODELS_DIR) -> Path:
+    """Where the model for this profile is stored, e.g. models/windsurf_intermediate.joblib."""
+    return models_dir / f"{profile.sport}_{profile.level}.joblib"
+
+
+def save_model(
+    model: ClassifierMixin,
+    profile: ActivityProfile,
+    train_years: list[int],
+    models_dir: Path = MODELS_DIR,
+) -> Path:
+    """Save the model together with what is needed to use it correctly later."""
+    bundle = {
+        "model": model,
+        "features": FEATURES,  # the exact columns, in the exact order, it was trained on
+        "profile": profile,
+        "train_years": train_years,
+        "sklearn_version": sklearn.__version__,
+    }
+    path = model_path(profile, models_dir)
+    models_dir.mkdir(exist_ok=True)
+    joblib.dump(bundle, path)
+    return path
+
+
+def load_model(
+    profile: ActivityProfile, models_dir: Path = MODELS_DIR
+) -> dict[str, Any]:
+    """Load a saved model bundle. Only load files you created yourself (see joblib docs)."""
+    path = model_path(profile, models_dir)
+    if not path.exists():
+        raise FileNotFoundError(
+            f"No saved model at {path}. Run `uv run spotcast` first."
+        )
+
+    bundle = joblib.load(path)
+    if bundle["sklearn_version"] != sklearn.__version__:
+        print(
+            f"Warning: model was saved with scikit-learn {bundle['sklearn_version']}, "
+            f"running {sklearn.__version__}. Retrain if results look wrong."
+        )
+    return bundle
+
+
+def predict_conditions(
+    bundle: dict[str, Any], conditions: pd.DataFrame
+) -> pd.DataFrame:
+    """Add a "prediction" column to a conditions table (e.g. the 7-day forecast)."""
+    X = conditions[bundle["features"]]
+    result = conditions.copy()
+    result["prediction"] = predict_with_guardrail(bundle["model"], X, bundle["profile"])
+    return result
