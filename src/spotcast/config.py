@@ -11,7 +11,9 @@ TIMEZONE = "Europe/Istanbul"
 REQUEST_TIMEOUT_SECONDS = 10
 
 # Project root is two folders above this file: src/spotcast/config.py
-DATA_DIR = Path(__file__).resolve().parents[2] / "data"
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+DATA_DIR = PROJECT_ROOT / "data"
+MODELS_DIR = PROJECT_ROOT / "models"
 HISTORY_START = date(2024, 1, 1)
 HISTORY_END = date(2025, 12, 31)
 HISTORY_TABLE = "conditions_history"
