@@ -14,8 +14,8 @@ REQUEST_TIMEOUT_SECONDS = 10
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 DATA_DIR = PROJECT_ROOT / "data"
 MODELS_DIR = PROJECT_ROOT / "models"
-HISTORY_START = date(2024, 1, 1)
-HISTORY_END = date(2025, 12, 31)
+HISTORY_START = date(2022, 1, 1)  # marine (wave) data starts in 2022
+HISTORY_END = date(2026, 10, 24)  # ~1 week back: the newest days are not final yet
 HISTORY_TABLE = "conditions_history"
 
 
