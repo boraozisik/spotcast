@@ -16,10 +16,12 @@ dependencies = [
     "requests>=2.34.2",
     "scikit-learn>=1.9.1",
     "sqlalchemy>=2.1.6",
+    "xgboost>=3.4.1",
 ]
 
 [project.scripts]
 spotcast = "spotcast:main"
+spotcast-forecast = "spotcast.wind_model:main"
 
 [build-system]
 requires = ["uv_build>=0.13.5,<0.14.0"]
