@@ -21,6 +21,7 @@ from spotcast.model import (
     train_tree,
 )
 from spotcast.profiles import get_profile
+from spotcast.recommend import Preferences, recommend
 
 TEST_YEAR = 2025
 SPORT, LEVEL = "windsurf", "intermediate"
@@ -98,6 +99,16 @@ def main() -> None:
         return
     predicted = predict_conditions(bundle, forecast)
     show_forecast(predicted)
+
+    # Forecast times are local (Europe/Istanbul), like this computer's clock
+    next_hour = pd.Timestamp.now().ceil("h")
+    for title, prefs in [
+        ("any day, 09:00-18:00, at least 2 hours", Preferences(not_before=next_hour)),
+        ("weekend only", Preferences.weekend(not_before=next_hour)),
+    ]:
+        print(f"\n=== Best windows: {title} ===")
+        best = recommend(predicted, profile, prefs)
+        print("No window fits." if best.empty else best.round(2).to_string(index=False))
 
 
 def show_forecast(predicted: pd.DataFrame) -> None:

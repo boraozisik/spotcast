@@ -82,8 +82,12 @@ def model_inputs(table: pd.DataFrame) -> pd.DataFrame:
     return X
 
 
-def train_xgboost(train: pd.DataFrame) -> XGBRegressor:
-    """Gradient boosting: hundreds of small trees, each one fixing the errors of the ones before."""
+def train_xgboost(train: pd.DataFrame, n_jobs: int | None = None) -> XGBRegressor:
+    """Gradient boosting: hundreds of small trees, each one fixing the errors of the ones before.
+
+    n_jobs=None uses all CPU cores. Pass n_jobs=1 when PyTorch is running in the same
+    program: on macOS their two OpenMP libraries crash together (segmentation fault).
+    """
     model = XGBRegressor(
         n_estimators=400,  # number of trees
         learning_rate=0.05,  # how much each new tree is allowed to correct
@@ -93,6 +97,7 @@ def train_xgboost(train: pd.DataFrame) -> XGBRegressor:
         tree_method="hist",
         enable_categorical=True,
         random_state=42,
+        n_jobs=n_jobs,
     )
     return model.fit(model_inputs(train), train[TARGET])
 

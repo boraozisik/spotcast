@@ -39,7 +39,7 @@ def _check_hourly(df: pd.DataFrame) -> None:
         raise ValueError("Each spot must have consecutive hourly rows, sorted by time")
 
 
-def _cyclical(values: pd.Series, period: float) -> tuple[pd.Series, pd.Series]:
+def cyclical(values: pd.Series, period: float) -> tuple[pd.Series, pd.Series]:
     """Map a repeating value (hour, month, angle) onto a circle so its ends meet.
 
     Without this, 23:00 and 00:00 look far apart (23 vs 0) though they are 1 hour apart.
@@ -74,9 +74,9 @@ def make_forecast_table(
     df["wind_mean_24h"] = wind.transform(lambda s: s.rolling(24).mean())
 
     # Direction and time are circular: 359° is next to 1°, December is next to January
-    df["wind_dir_sin"], df["wind_dir_cos"] = _cyclical(df["wind_direction_10m"], 360)
-    df["hour_sin"], df["hour_cos"] = _cyclical(df["time"].dt.hour, 24)
-    df["month_sin"], df["month_cos"] = _cyclical(df["time"].dt.month - 1, 12)
+    df["wind_dir_sin"], df["wind_dir_cos"] = cyclical(df["wind_direction_10m"], 360)
+    df["hour_sin"], df["hour_cos"] = cyclical(df["time"].dt.hour, 24)
+    df["month_sin"], df["month_cos"] = cyclical(df["time"].dt.month - 1, 12)
 
     needed = [*FORECAST_FEATURES, f"wind_in_{horizon_hours}h"]
     return df.dropna(subset=needed).reset_index(drop=True)
