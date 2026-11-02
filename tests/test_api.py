@@ -7,9 +7,19 @@ import pandas as pd
 import pytest
 from fastapi.testclient import TestClient
 
-from spotcast.api import app, get_bundles, get_forecast, get_now
+from spotcast.api import (
+    app,
+    get_bundles,
+    get_forecast,
+    get_llm,
+    get_now,
+    get_retriever,
+)
+from spotcast.explain import Explanation, Tip
+from spotcast.llm import LLMUnavailableError
 from spotcast.model import FEATURES
 from spotcast.profiles import WINDSURF_INTERMEDIATE
+from spotcast.rag import Chunk, SearchResult
 
 
 class AlwaysGoodModel:
@@ -34,6 +44,18 @@ def fake_forecast() -> pd.DataFrame:
     )
 
 
+def fake_retrieve(question, spots):
+    chunk = Chunk(
+        file="spots/alacati.md",
+        title="Alaçatı spot rehberi",
+        section="Alaçatı: tehlikeler",
+        spot="Alaçatı",
+        source="test notları",
+        content="Yazın çok kalabalık olur.",
+    )
+    return [SearchResult(chunk=chunk, distance=0.3)]
+
+
 @pytest.fixture
 def client():
     """A test client whose dependencies are fakes, like overriding providers in NestJS."""
@@ -47,6 +69,7 @@ def client():
     }
     app.dependency_overrides[get_forecast] = fake_forecast
     app.dependency_overrides[get_now] = lambda: datetime(2026, 11, 6, 12, 0)
+    app.dependency_overrides[get_retriever] = lambda: fake_retrieve
     yield TestClient(app)
     app.dependency_overrides.clear()
 
@@ -98,3 +121,39 @@ def test_bad_input_is_422(client, params):
 
 def test_missing_sport_is_422(client):
     assert client.get("/recommend", params={"level": "intermediate"}).status_code == 422
+
+
+def test_explain_adds_llm_text_and_fixed_caution(client):
+    def fake_llm(messages, output_model):
+        return Explanation(
+            headline="Cumartesi Alaçatı",
+            reason="18 knot",
+            alternatives=[],
+            tips=[Tip(text="Kalabalığa dikkat et.", source_ids=[1])],
+        )
+
+    app.dependency_overrides[get_llm] = lambda: fake_llm
+    body = client.get("/explain", params=WINDSURF).json()
+
+    assert body["explanation"]["headline"] == "Cumartesi Alaçatı"
+    assert body["explanation"]["tips"][0]["source_ids"] == [1]
+    assert body["sources"] == [
+        {
+            "id": 1,
+            "title": "Alaçatı spot rehberi",
+            "section": "Alaçatı: tehlikeler",
+            "source": "test notları",
+        }
+    ]
+    assert len(body["windows"]) == 1
+    assert "kendin kontrol et" in body["caution"]
+
+
+def test_explain_returns_503_when_ollama_is_down(client):
+    def offline_llm(messages, output_model):
+        raise LLMUnavailableError("Ollama is not running.")
+
+    app.dependency_overrides[get_llm] = lambda: offline_llm
+    response = client.get("/explain", params=WINDSURF)
+
+    assert response.status_code == 503

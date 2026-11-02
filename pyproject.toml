@@ -11,6 +11,7 @@ dependencies = [
     "fastapi[standard]>=0.162.0",
     "joblib>=1.6.0",
     "pandas>=3.1.0",
+    "pgvector>=0.5.1",
     "psycopg[binary]>=3.3.6",
     "pyarrow>=26.0.0",
     "python-dotenv>=1.2.4",
@@ -26,6 +27,7 @@ spotcast = "spotcast:main"
 spotcast-forecast = "spotcast.wind_model:main"
 spotcast-lstm = "spotcast.lstm_model:main"
 spotcast-api = "spotcast.api:run"
+spotcast-index = "spotcast.rag:main"
 
 [build-system]
 requires = ["uv_build>=0.13.5,<0.14.0"]
