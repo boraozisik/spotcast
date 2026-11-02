@@ -12,6 +12,8 @@ from pydantic import BaseModel
 
 DEFAULT_OLLAMA_URL = "http://localhost:11434"
 CHAT_MODEL = "qwen3:8b"
+EMBED_MODEL = "bge-m3"  # multilingual, works well for Turkish
+EMBED_DIMENSIONS = 1024  # every bge-m3 vector has this many numbers
 LLM_TIMEOUT_SECONDS = 120  # a local 8B model can take a while on long prompts
 
 
@@ -59,3 +61,24 @@ def chat[Output: BaseModel](
     response.raise_for_status()
 
     return output_model.model_validate_json(response.json()["message"]["content"])
+
+
+def embed(texts: list[str], model: str = EMBED_MODEL) -> list[list[float]]:
+    """Turn texts into vectors. Texts with similar meaning get vectors that point the same way."""
+    try:
+        response = requests.post(
+            f"{ollama_url()}/api/embed",
+            json={"model": model, "input": texts},
+            timeout=LLM_TIMEOUT_SECONDS,
+        )
+    except requests.ConnectionError as error:
+        raise LLMUnavailableError(
+            "Ollama is not running. Open the Ollama app or run `ollama serve`."
+        ) from error
+
+    if response.status_code == 404:
+        raise LLMUnavailableError(
+            f"Model {model} not found. Run `ollama pull {model}`."
+        )
+    response.raise_for_status()
+    return response.json()["embeddings"]
