@@ -7,7 +7,9 @@ import pandas as pd
 import pytest
 from fastapi.testclient import TestClient
 
-from spotcast.api import app, get_bundles, get_forecast, get_now
+from spotcast.api import app, get_bundles, get_forecast, get_llm, get_now
+from spotcast.explain import Explanation
+from spotcast.llm import LLMUnavailableError
 from spotcast.model import FEATURES
 from spotcast.profiles import WINDSURF_INTERMEDIATE
 
@@ -98,3 +100,27 @@ def test_bad_input_is_422(client, params):
 
 def test_missing_sport_is_422(client):
     assert client.get("/recommend", params={"level": "intermediate"}).status_code == 422
+
+
+def test_explain_adds_llm_text_and_fixed_caution(client):
+    def fake_llm(messages, output_model):
+        return Explanation(
+            headline="Cumartesi Alaçatı", reason="18 knot", alternatives=[]
+        )
+
+    app.dependency_overrides[get_llm] = lambda: fake_llm
+    body = client.get("/explain", params=WINDSURF).json()
+
+    assert body["explanation"]["headline"] == "Cumartesi Alaçatı"
+    assert len(body["windows"]) == 1
+    assert "kendin kontrol et" in body["caution"]
+
+
+def test_explain_returns_503_when_ollama_is_down(client):
+    def offline_llm(messages, output_model):
+        raise LLMUnavailableError("Ollama is not running.")
+
+    app.dependency_overrides[get_llm] = lambda: offline_llm
+    response = client.get("/explain", params=WINDSURF)
+
+    assert response.status_code == 503
