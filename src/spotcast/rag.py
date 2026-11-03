@@ -78,8 +78,13 @@ def parse_front_matter(raw: str) -> tuple[dict[str, str], str]:
 
 
 def split_document(raw: str, file: str) -> list[Chunk]:
-    """One chunk per `## ` section. HTML comments are notes for writers, so they are removed."""
+    """One chunk per `## ` section. HTML comments are notes for writers, so they are removed.
+
+    Documents with `status: draft` give no chunks: a person must review them first.
+    """
     meta, body = parse_front_matter(raw)
+    if meta.get("status") == "draft":
+        return []
     body = re.sub(r"<!--.*?-->", "", body, flags=re.DOTALL)
 
     chunks = []

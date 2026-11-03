@@ -67,3 +67,15 @@ def test_real_knowledge_folder():
             assert chunk.spot in chunk.section, (
                 f"{chunk.file}: add the spot name to '{chunk.section}'"
             )
+
+
+def test_every_reviewed_document_reaches_rag():
+    """A reviewed document with no `## ` heading gives no chunks and is silently ignored."""
+    from spotcast.rag import KNOWLEDGE_DIR, parse_front_matter
+
+    used = {c.file for c in load_knowledge()}
+    for path in sorted(KNOWLEDGE_DIR.rglob("*.md")):
+        file = path.relative_to(KNOWLEDGE_DIR).as_posix()
+        meta, _ = parse_front_matter(path.read_text(encoding="utf-8"))
+        if meta.get("status") != "draft":
+            assert file in used, f"{file} has no '## ' section, so RAG never uses it"
