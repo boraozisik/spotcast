@@ -5,13 +5,15 @@ with a JSON schema, an answer that is guaranteed to have the shape we asked for.
 """
 
 import os
+from typing import Any
 
 import requests
 from dotenv import load_dotenv
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 
 DEFAULT_OLLAMA_URL = "http://localhost:11434"
 CHAT_MODEL = "qwen3:8b"
+VISION_MODEL = "qwen2.5vl:7b"  # can look at images; beat gemma3:4b on our sea photos
 EMBED_MODEL = "bge-m3"  # multilingual, works well for Turkish
 EMBED_DIMENSIONS = 1024  # every bge-m3 vector has this many numbers
 LLM_TIMEOUT_SECONDS = 120  # a local 8B model can take a while on long prompts
@@ -21,16 +23,21 @@ class LLMUnavailableError(RuntimeError):
     """Ollama is not running or the model is missing."""
 
 
+class LLMOutputError(ValueError):
+    """The model answered, but not in the requested shape (cut off, broken JSON, ...)."""
+
+
 def ollama_url() -> str:
     load_dotenv()
     return os.environ.get("OLLAMA_URL", DEFAULT_OLLAMA_URL)
 
 
 def chat[Output: BaseModel](
-    messages: list[dict[str, str]],
+    messages: list[dict[str, Any]],  # a message may also carry "images" (base64)
     output_model: type[Output],
     model: str = CHAT_MODEL,
     temperature: float = 0.2,
+    max_tokens: int = 1024,
 ) -> Output:
     """Send messages to the LLM and get back a validated Pydantic object.
 
@@ -43,7 +50,11 @@ def chat[Output: BaseModel](
         "format": output_model.model_json_schema(),
         "stream": False,  # one complete answer instead of word-by-word chunks
         "think": False,  # qwen3 can "think out loud" first; we only want the answer
-        "options": {"temperature": temperature},  # low = more predictable wording
+        "options": {
+            "temperature": temperature,  # low = more predictable wording
+            # A model can get stuck repeating itself; stop it instead of waiting forever
+            "num_predict": max_tokens,
+        },
     }
     try:
         response = requests.post(
@@ -60,7 +71,14 @@ def chat[Output: BaseModel](
         )
     response.raise_for_status()
 
-    return output_model.model_validate_json(response.json()["message"]["content"])
+    content = response.json()["message"]["content"]
+    try:
+        return output_model.model_validate_json(content)
+    except ValidationError as error:
+        raise LLMOutputError(
+            f"{model} gave an invalid answer ({len(content)} characters): "
+            f"{content[:120]}..."
+        ) from error
 
 
 def embed(texts: list[str], model: str = EMBED_MODEL) -> list[list[float]]:
