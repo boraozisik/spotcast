@@ -100,3 +100,40 @@ def embed(texts: list[str], model: str = EMBED_MODEL) -> list[list[float]]:
         )
     response.raise_for_status()
     return response.json()["embeddings"]
+
+
+def chat_with_tools(
+    messages: list[dict[str, Any]],
+    tools: list[dict],
+    model: str = CHAT_MODEL,
+    temperature: float = 0.2,
+    max_tokens: int = 1024,
+) -> dict[str, Any]:
+    """One LLM turn that may ask for tools instead of answering.
+
+    Returns the assistant message: either {"content": "..."} with the answer, or
+    {"tool_calls": [...]} asking us to run tools first. No JSON schema here: the model
+    must be free to choose between the two.
+    """
+    payload = {
+        "model": model,
+        "messages": messages,
+        "tools": tools,
+        "stream": False,
+        "think": False,
+        "options": {"temperature": temperature, "num_predict": max_tokens},
+    }
+    try:
+        response = requests.post(
+            f"{ollama_url()}/api/chat", json=payload, timeout=LLM_TIMEOUT_SECONDS
+        )
+    except requests.ConnectionError as error:
+        raise LLMUnavailableError(
+            "Ollama is not running. Open the Ollama app or run `ollama serve`."
+        ) from error
+    if response.status_code == 404:
+        raise LLMUnavailableError(
+            f"Model {model} not found. Run `ollama pull {model}`."
+        )
+    response.raise_for_status()
+    return response.json()["message"]

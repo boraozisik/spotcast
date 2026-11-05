@@ -66,11 +66,13 @@ def test_day_outside_the_forecast_is_refused():
     assert "outside the forecast" in result["error"]
 
 
-def test_unknown_profile_is_refused():
+def test_unsupported_level_is_refused_by_the_schema():
     result = tools.TOOLS_BY_NAME["check_conditions"].call(
         {"latitude": 36.8, "longitude": 34.6, "day": "2026-11-07", "level": "beginner"}
     )
-    assert "No profile for windsurf/beginner" in result["error"]
+    # The schema only allows levels we have a profile for, and says which one
+    assert "Invalid arguments" in result["error"]
+    assert "intermediate" in result["error"]
 
 
 def test_check_conditions_far_from_known_spots(monkeypatch):
@@ -121,3 +123,21 @@ def test_find_location_with_no_results(monkeypatch):
     monkeypatch.setattr(tools.requests, "get", lambda *a, **k: EmptyResponse())
     result = tools.TOOLS_BY_NAME["find_location"].call({"name": "Atlantis"})
     assert result == {"error": "No place called 'Atlantis' was found in Turkey."}
+
+
+def test_turkish_words_from_the_llm_are_accepted():
+    args = tools.CheckConditionsArgs(
+        latitude=36.8,
+        longitude=34.6,
+        day="2026-11-07",
+        sport="Rüzgâr sörfü",
+        level="orta",
+    )
+    assert (args.sport, args.level) == ("windsurf", "intermediate")
+
+
+def test_beginner_is_understood_but_not_supported_yet():
+    result = tools.TOOLS_BY_NAME["recommend_spots"].call({"level": "yeni başlayan"})
+    assert (
+        "Invalid arguments" in result["error"]
+    )  # mapped to "beginner", which has no profile

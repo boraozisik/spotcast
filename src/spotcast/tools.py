@@ -15,18 +15,62 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import date, datetime
 from functools import lru_cache
-from typing import Any
+from typing import Any, Literal
 
 import pandas as pd
 import requests
-from pydantic import BaseModel, Field, ValidationError
+from pydantic import BaseModel, Field, ValidationError, field_validator
 
 from spotcast.config import REQUEST_TIMEOUT_SECONDS, SPOTS, Spot
 from spotcast.data import fetch_all_spots, fetch_conditions
 from spotcast.explain import turkish_date
 from spotcast.model import load_model, predict_conditions
-from spotcast.profiles import ActivityProfile, get_profile
+from spotcast.profiles import PROFILES, ActivityProfile, get_profile
 from spotcast.recommend import Preferences, find_windows, recommend
+
+# Only the sports and levels we have profiles for. In the schema these become a list of
+# allowed values (an enum), so the LLM can't send "rüzgâr sörfü" or "orta".
+Sport = Literal[tuple(sorted({sport for sport, _ in PROFILES}))]
+Level = Literal[tuple(sorted({level for _, level in PROFILES}))]
+SPORT_HELP = "windsurf = rüzgâr sörfü"
+LEVEL_HELP = (
+    "yeni başlayan = beginner, orta = intermediate, ileri = advanced. "
+    "Only the allowed values are supported."
+)
+
+# The LLM often copies the user's Turkish words. Accept them instead of wasting a step.
+SPORT_ALIASES = {
+    "rüzgâr sörfü": "windsurf",
+    "rüzgar sörfü": "windsurf",
+    "sörf": "windsurf",
+}
+LEVEL_ALIASES = {
+    "yeni başlayan": "beginner",
+    "başlangıç": "beginner",
+    "acemi": "beginner",
+    "orta": "intermediate",
+    "orta seviye": "intermediate",
+    "ileri": "advanced",
+    "ileri seviye": "advanced",
+}
+
+
+class ProfileArgs(BaseModel):
+    """Sport and level, shared by the tools that judge conditions."""
+
+    sport: Sport = Field(default="windsurf", description=SPORT_HELP)
+    level: Level = Field(default="intermediate", description=LEVEL_HELP)
+
+    @field_validator("sport", mode="before")
+    @classmethod
+    def _sport_alias(cls, value: object) -> object:
+        return SPORT_ALIASES.get(str(value).strip().lower(), value)
+
+    @field_validator("level", mode="before")
+    @classmethod
+    def _level_alias(cls, value: object) -> object:
+        return LEVEL_ALIASES.get(str(value).strip().lower(), value)
+
 
 GEOCODING_URL = "https://geocoding-api.open-meteo.com/v1/search"
 FORECAST_DAYS = 7  # Open-Meteo's default forecast length
@@ -156,14 +200,12 @@ def find_location(args: FindLocationArgs) -> dict:
 # ---------- Tool 2: check_conditions (any place) ----------
 
 
-class CheckConditionsArgs(BaseModel):
+class CheckConditionsArgs(ProfileArgs):
     latitude: float = Field(ge=-90, le=90)
     longitude: float = Field(ge=-180, le=180)
     day: date = Field(
         description="The day to check, YYYY-MM-DD, within the next 7 days"
     )
-    sport: str = "windsurf"
-    level: str = "intermediate"
 
 
 def check_conditions(args: CheckConditionsArgs) -> dict:
@@ -233,13 +275,11 @@ def check_conditions(args: CheckConditionsArgs) -> dict:
 # ---------- Tool 3: recommend_spots (known spots) ----------
 
 
-class RecommendSpotsArgs(BaseModel):
+class RecommendSpotsArgs(ProfileArgs):
     day: date | None = Field(default=None, description="Only this day (YYYY-MM-DD)")
     weekend_only: bool = False
     earliest_hour: int = Field(default=9, ge=0, le=23)
     latest_hour: int = Field(default=18, ge=0, le=23)
-    sport: str = "windsurf"
-    level: str = "intermediate"
 
 
 def recommend_spots(args: RecommendSpotsArgs) -> dict:
