@@ -12,6 +12,7 @@ dependencies = [
     "joblib>=1.6.0",
     "langchain-ollama>=1.1.0",
     "langgraph>=1.2.20",
+    "mcp[cli]>=2.3.0",
     "pandas>=3.1.0",
     "pgvector>=0.5.1",
     "pillow>=13.0.0",
@@ -36,6 +37,7 @@ spotcast-ocr = "spotcast.ocr:main"
 spotcast-tools = "spotcast.tools:main"
 spotcast-agent = "spotcast.agent:main"
 spotcast-graph = "spotcast.agent_graph:main"
+spotcast-mcp = "spotcast.mcp_server:main"
 
 [build-system]
 requires = ["uv_build>=0.13.5,<0.14.0"]
