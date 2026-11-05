@@ -197,6 +197,45 @@ def run_tool(name: str, arguments: Any, sport: str, level: str) -> dict:
     return tool.call(arguments)
 
 
+GAVE_UP = "Üzgünüm, bu soruyu cevaplayamadım. Lütfen daha açık bir şekilde sor."
+
+
+@dataclass(frozen=True)
+class Who:
+    """The sport and level code decided on, or a refusal if SpotCast can't help yet."""
+
+    sport: str
+    level: str
+    level_note: str = ""
+    refusal: str | None = None
+
+
+def decide_profile(said: UserProfile) -> Who:
+    sport = DEFAULT_SPORT if said.sport == "unknown" else said.sport
+    level = DEFAULT_LEVEL if said.level == "unknown" else said.level
+    if (sport, level) not in PROFILES:
+        return Who(sport, level, refusal=unsupported_answer(sport, level))
+    note = (
+        f"\n\nℹ️ Seviyeni belirtmediğin için bu değerlendirme {TURKISH_LEVELS[level]} seviye "
+        f"içindir; seviyen farklıysa sonuçlar sana uymayabilir."
+        if said.level == "unknown"
+        else ""
+    )
+    return Who(sport, level, level_note=note)
+
+
+def finish_answer(content: str, steps: list[Step], level_note: str) -> str:
+    """Add the texts that code writes, never the LLM: level note, caution, source quote."""
+    answer = content.strip()
+    gave_conditions = any(
+        s.tool in ("check_conditions", "recommend_spots") and "error" not in s.result
+        for s in steps
+    )
+    if gave_conditions:
+        answer += level_note + f"\n\n⚠️ {CAUTION}"
+    return answer + quoted_source(steps)
+
+
 def run_agent(
     question: str,
     now: datetime | None = None,
@@ -209,17 +248,10 @@ def run_agent(
     now = now or datetime.now()
 
     # 1) Who is asking? Read it once, then code decides. The agent can never change it.
-    said = profile_reader(question)
-    sport = DEFAULT_SPORT if said.sport == "unknown" else said.sport
-    level = DEFAULT_LEVEL if said.level == "unknown" else said.level
-    if (sport, level) not in PROFILES:
-        return AgentResult(unsupported_answer(sport, level))
-    level_note = (
-        f"\n\nℹ️ Seviyeni belirtmediğin için bu değerlendirme {TURKISH_LEVELS[level]} seviye "
-        f"içindir; seviyen farklıysa sonuçlar sana uymayabilir."
-        if said.level == "unknown"
-        else ""
-    )
+    who = decide_profile(profile_reader(question))
+    if who.refusal:
+        return AgentResult(who.refusal)
+    sport, level, level_note = who.sport, who.level, who.level_note
 
     # 2) The agent loop
     messages: list[dict[str, Any]] = [
@@ -235,15 +267,7 @@ def run_agent(
 
         calls = reply.get("tool_calls") or []
         if not calls:  # no tool requested: this is the final answer
-            answer = (reply.get("content") or "").strip()
-            gave_conditions = any(
-                s.tool in ("check_conditions", "recommend_spots")
-                and "error" not in s.result
-                for s in steps
-            )
-            if gave_conditions:  # fixed texts, written by code, never generated
-                answer += level_note + f"\n\n⚠️ {CAUTION}"
-            answer += quoted_source(steps)
+            answer = finish_answer(reply.get("content") or "", steps, level_note)
             return AgentResult(answer, steps)
 
         for call in calls:
@@ -264,11 +288,7 @@ def run_agent(
             )
 
     # Too many steps: the model is going in circles. Stop instead of looping forever.
-    return AgentResult(
-        "Üzgünüm, bu soruyu cevaplayamadım. Lütfen daha açık bir şekilde sor.",
-        steps,
-        stopped_early=True,
-    )
+    return AgentResult(GAVE_UP, steps, stopped_early=True)
 
 
 EXAMPLE_QUESTIONS = [
