@@ -31,6 +31,7 @@ spotcast-api = "spotcast.api:run"
 spotcast-index = "spotcast.rag:main"
 spotcast-vision = "spotcast.vision:main"
 spotcast-ocr = "spotcast.ocr:main"
+spotcast-tools = "spotcast.tools:main"
 
 [build-system]
 requires = ["uv_build>=0.13.5,<0.14.0"]
