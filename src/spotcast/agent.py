@@ -87,6 +87,7 @@ class AgentResult:
     answer: str
     steps: list[Step] = field(default_factory=list)
     stopped_early: bool = False
+    llm_text: str = ""  # only what the LLM wrote, before code adds notes (for evaluation)
 
 
 def date_table(now: datetime) -> str:
@@ -94,7 +95,8 @@ def date_table(now: datetime) -> str:
     lines = ["Dates (today first):"]
     for offset in range(7):
         day = now + timedelta(days=offset)
-        label = "today" if offset == 0 else ("tomorrow" if offset == 1 else "")
+        # Turkish words too: the user writes "yarın", and the model missed "tomorrow" for it
+        label = {0: "today (bugün)", 1: "tomorrow (yarın)"}.get(offset, "")
         lines.append(f"- {turkish_date(day)} = {day:%Y-%m-%d} {label}".rstrip())
     return "\n".join(lines)
 
@@ -267,8 +269,9 @@ def run_agent(
 
         calls = reply.get("tool_calls") or []
         if not calls:  # no tool requested: this is the final answer
-            answer = finish_answer(reply.get("content") or "", steps, level_note)
-            return AgentResult(answer, steps)
+            content = reply.get("content") or ""
+            answer = finish_answer(content, steps, level_note)
+            return AgentResult(answer, steps, llm_text=content.strip())
 
         for call in calls:
             name = call["function"]["name"]
