@@ -1,0 +1,104 @@
+{
+  "description": "Retrieval test set: a user question and the knowledge sections that answer it. A case passes if ANY expected section is found. Sections are written as 'file → section heading'.",
+  "cases": [
+    {
+      "question": "Alaçatı'da rüzgâr hangi yönden eser?",
+      "spots": ["Alaçatı"],
+      "expected": ["spots/alacati.md → Alaçatı: rüzgâr"]
+    },
+    {
+      "question": "Orta seviyeysem Alaçatı'ya hangi ayda gitmeliyim?",
+      "spots": ["Alaçatı"],
+      "expected": ["spots/alacati.md → Alaçatı: orta seviye için hangi aylar?"]
+    },
+    {
+      "question": "Alaçatı'da dalgalar büyük mü olur?",
+      "spots": ["Alaçatı"],
+      "expected": ["spots/alacati.md → Alaçatı: dalga"]
+    },
+    {
+      "question": "Alaçatı'da nelere dikkat etmeliyim?",
+      "spots": ["Alaçatı"],
+      "expected": ["spots/alacati.md → Alaçatı: tehlikeler"]
+    },
+    {
+      "question": "Akyaka'da rüzgâr günün hangi saatinde çıkıyor?",
+      "spots": ["Akyaka"],
+      "expected": ["spots/akyaka.md → Akyaka: rüzgâr"]
+    },
+    {
+      "question": "Akyaka için verdiğiniz rüzgâr değerlerine güvenebilir miyim?",
+      "spots": ["Akyaka"],
+      "expected": ["spots/akyaka.md → Akyaka: verinin sınırı"]
+    },
+    {
+      "question": "Pamucak'ta en rüzgârlı dönem hangisi?",
+      "spots": ["Kuşadası Pamucak"],
+      "expected": [
+        "spots/kusadasi_pamucak.md → Kuşadası Pamucak: rüzgâr",
+        "spots/kusadasi_pamucak.md → Kuşadası Pamucak: orta seviye için hangi aylar?"
+      ]
+    },
+    {
+      "question": "Rüzgâr karadan denize doğru eserse ne olur?",
+      "spots": null,
+      "expected": [
+        "windsurf_safety.md → Rüzgâr yönü: karadan denize esen rüzgâr (offshore)",
+        "signs/tr_windsurf_sign.md → Rüzgâr sörfü alanı kuralları: rüzgâr yönü"
+      ]
+    },
+    {
+      "question": "Dip akıntısına yakalanırsam ne yapmalıyım?",
+      "spots": null,
+      "expected": ["signs/rip_currents_sign.md → Dip akıntısına yakalanırsan ne yapmalı"]
+    },
+    {
+      "question": "Beni açığa çeken su nedir?",
+      "spots": null,
+      "expected": ["signs/rip_currents_sign.md → Dip akıntısı nedir?"]
+    },
+    {
+      "question": "25 knot rüzgâr kaç Beaufort eder?",
+      "spots": null,
+      "expected": ["beaufort.md → 6-7 Beaufort: güçlü rüzgâr"]
+    },
+    {
+      "question": "Tahtanın suyun üstünde kaymaya başlaması için ne kadar rüzgâr gerekir?",
+      "spots": null,
+      "expected": ["beaufort.md → 4-5 Beaufort: rüzgâr sörfünün ana aralığı"]
+    },
+    {
+      "question": "Rüzgâr aniden sertleşirse ne yapmalıyım?",
+      "spots": null,
+      "expected": ["windsurf_safety.md → Hamle (ani rüzgâr artışları)"]
+    },
+    {
+      "question": "Yelkenim kırılırsa ne yapmalıyım?",
+      "spots": null,
+      "expected": ["windsurf_safety.md → Tahtadan ayrılmamak"]
+    },
+    {
+      "question": "Hava kararırken suda kalmak sorun olur mu?",
+      "spots": null,
+      "expected": [
+        "windsurf_safety.md → Hava değişimi ve gün ışığı",
+        "signs/tr_windsurf_sign.md → Rüzgâr sörfü alanı kuralları: yalnız çıkmamak ve gün batımı"
+      ]
+    },
+    {
+      "question": "Karşıdan gelen başka bir sörfçüyle çarpışmamak için kim yol verir?",
+      "spots": null,
+      "expected": ["windsurf_safety.md → Yol hakkı kuralları"]
+    },
+    {
+      "question": "Acil bir durumda kimi aramalıyım?",
+      "spots": null,
+      "expected": ["signs/tr_windsurf_sign.md → Rüzgâr sörfü alanı kuralları: sorun ve acil durum"]
+    },
+    {
+      "question": "Fırtınada sörf yapılır mı?",
+      "spots": null,
+      "expected": ["beaufort.md → 8 Beaufort ve üzeri: fırtına"]
+    }
+  ]
+}
