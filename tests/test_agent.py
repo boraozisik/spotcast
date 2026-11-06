@@ -130,6 +130,23 @@ def test_unknown_level_adds_a_note_and_the_caution(monkeypatch):
     assert "kendin kontrol et" in result.answer
 
 
+def test_uncertainty_notes_are_added_by_code_even_if_the_llm_skips_them(monkeypatch):
+    use_fake(
+        monkeypatch,
+        "check_conditions",
+        {"days_ahead": 6, "label_counts": {"unknown": 5}, "warnings": ["..."]},
+    )
+    llm = scripted_llm(tool_call("check_conditions"), answer("Rüzgâr 12 knot."))
+
+    result = run_agent("Gölde olur mu?", now=NOW, llm=llm, profile_reader=reads())
+
+    assert result.llm_text == "Rüzgâr 12 knot."  # the LLM said nothing about either
+    assert "dalga verisi yok" in result.answer
+    assert "6 gün sonrası için tahmin" in result.answer
+    # the order: LLM text, then uncertainty, then the general caution
+    assert result.answer.index("6 gün") < result.answer.index("kendin kontrol et")
+
+
 def test_knowledge_answer_quotes_the_source_word_for_word(monkeypatch):
     excerpt = {
         "title": "Dip Akıntıları",

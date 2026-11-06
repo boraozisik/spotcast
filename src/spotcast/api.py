@@ -25,13 +25,16 @@ from spotcast.explain import (
     Retriever,
     explain_recommendation,
 )
-from spotcast.llm import LLMUnavailableError, chat
+from spotcast.llm import LLMOutputError, LLMUnavailableError, chat
 from spotcast.model import load_model, predict_conditions
 from spotcast.profiles import PROFILES, ActivityProfile, get_profile
 from spotcast.rag import SearchResult, search
 from spotcast.recommend import Preferences, recommend
+from spotcast.uncertainty import days_ahead, lead_time_note
 
 logger = logging.getLogger("spotcast.api")
+
+LLM_ATTEMPTS = 2  # a broken LLM answer is retried once before giving up
 
 # Open-Meteo updates a few times a day; don't call it on every request
 FORECAST_CACHE_SECONDS = 30 * 60
@@ -64,6 +67,9 @@ class WindowOut(BaseModel):
     avg_wind_kn: float
     max_wave_m: float
     score: float
+    warnings: list[str] = Field(
+        default=[], description="Fixed warnings, e.g. a forecast too far ahead to trust"
+    )
 
 
 class RecommendOut(BaseModel):
@@ -283,9 +289,13 @@ def best_windows(
     return profile, recommend(predicted, profile, prefs, top=top)
 
 
-def to_window_list(best: pd.DataFrame) -> list[WindowOut]:
+def to_window_list(best: pd.DataFrame, now: datetime) -> list[WindowOut]:
     rounded = best.round({"avg_wind_kn": 2, "max_wave_m": 2, "score": 2})
-    return [WindowOut(**row) for row in rounded.to_dict(orient="records")]
+    windows = []
+    for row in rounded.to_dict(orient="records"):
+        note = lead_time_note(days_ahead(row["start"], now))
+        windows.append(WindowOut(**row, warnings=[note] if note else []))
+    return windows
 
 
 @app.get("/recommend")
@@ -304,7 +314,7 @@ def recommend_windows(
         sport=profile.sport,
         level=profile.level,
         generated_at=now,
-        windows=to_window_list(best),
+        windows=to_window_list(best, now),
     )
 
 
@@ -325,16 +335,28 @@ def explain_windows(
     Tips come from SpotCast's guides (RAG) and cite them by number.
     """
     profile, best = best_windows(sport, level, bundles, forecast, prefs, top)
-    try:
-        result = explain_recommendation(best, profile, now, ask=llm, retrieve=retrieve)
-    except LLMUnavailableError as error:
-        raise HTTPException(503, str(error)) from error
+    for attempt in range(1, LLM_ATTEMPTS + 1):
+        try:
+            result = explain_recommendation(
+                best, profile, now, ask=llm, retrieve=retrieve
+            )
+            break
+        except LLMUnavailableError as error:  # Ollama is off: trying again won't help
+            raise HTTPException(503, str(error)) from error
+        except LLMOutputError as error:  # a broken answer is often a one-off
+            logger.warning("LLM answer invalid (attempt %d): %s", attempt, error)
+            if attempt == LLM_ATTEMPTS:
+                raise HTTPException(
+                    502,
+                    "The language model gave an invalid answer twice. "
+                    "Try again, or use /recommend for the same windows without text.",
+                ) from error
 
     return ExplainOut(
         sport=profile.sport,
         level=profile.level,
         generated_at=now,
-        windows=to_window_list(best),
+        windows=to_window_list(best, now),
         explanation=result.explanation,
         sources=[
             SourceOut(id=s.id, title=s.title, section=s.section, source=s.source)

@@ -106,6 +106,20 @@ def test_no_wave_data_means_no_verdict(monkeypatch):
     assert result["local_guide_spot"] == "Alaçatı"  # within 15 km of a known spot
 
 
+def test_far_ahead_day_gets_a_lead_time_warning(monkeypatch):
+    monkeypatch.setattr(tools, "fetch_conditions", fake_forecast)
+    near = tools.check_conditions(
+        tools.CheckConditionsArgs(latitude=38.3, longitude=26.4, day="2026-11-07")
+    )
+    far = tools.check_conditions(
+        tools.CheckConditionsArgs(latitude=38.3, longitude=26.4, day="2026-11-10")
+    )
+
+    assert near["days_ahead"] == 2 and near["warnings"] == []
+    assert far["days_ahead"] == 5
+    assert any("5 gün sonrası" in w for w in far["warnings"])
+
+
 def test_distance_km():
     # Alaçatı to Akyaka is roughly 200 km in a straight line
     assert 180 < tools.distance_km(38.255, 26.375, 37.04, 28.31) < 230
