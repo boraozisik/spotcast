@@ -16,7 +16,7 @@ from spotcast.api import (
     get_retriever,
 )
 from spotcast.explain import Explanation, Tip
-from spotcast.llm import LLMUnavailableError
+from spotcast.llm import LLMOutputError, LLMUnavailableError
 from spotcast.model import FEATURES
 from spotcast.profiles import WINDSURF_INTERMEDIATE
 from spotcast.rag import Chunk, SearchResult
@@ -147,6 +147,46 @@ def test_explain_adds_llm_text_and_fixed_caution(client):
     ]
     assert len(body["windows"]) == 1
     assert "kendin kontrol et" in body["caution"]
+
+
+def test_window_far_ahead_has_a_warning(client):
+    near = client.get("/recommend", params=WINDSURF).json()["windows"][0]
+    app.dependency_overrides[get_now] = lambda: datetime(2026, 11, 2, 8, 0)
+    far = client.get("/recommend", params=WINDSURF).json()["windows"][0]
+
+    assert near["warnings"] == []  # Saturday seen from Friday: 1 day ahead
+    assert "5 gün sonrası" in far["warnings"][0]  # seen from Monday: 5 days ahead
+
+
+def explanation():
+    return Explanation(headline="h", reason="r", alternatives=[], tips=[])
+
+
+def test_explain_retries_once_after_a_broken_llm_answer(client):
+    calls = []
+
+    def flaky_llm(messages, output_model):
+        calls.append(1)
+        if len(calls) == 1:
+            raise LLMOutputError("not JSON")
+        return explanation()
+
+    app.dependency_overrides[get_llm] = lambda: flaky_llm
+    response = client.get("/explain", params=WINDSURF)
+
+    assert response.status_code == 200
+    assert len(calls) == 2
+
+
+def test_explain_returns_502_when_the_llm_answer_stays_broken(client):
+    def broken_llm(messages, output_model):
+        raise LLMOutputError("not JSON")
+
+    app.dependency_overrides[get_llm] = lambda: broken_llm
+    response = client.get("/explain", params=WINDSURF)
+
+    assert response.status_code == 502
+    assert "/recommend" in response.json()["detail"]  # tells the user what still works
 
 
 def test_explain_returns_503_when_ollama_is_down(client):

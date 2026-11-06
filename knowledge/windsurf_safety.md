@@ -15,7 +15,7 @@ esen rüzgârda (onshore) suya çıkmak dalgalar yüzünden zordur ama sürükle
 
 ## Hamle (ani rüzgâr artışları)
 
-Tahminlerdeki ortalama rüzgâr hızı tüm resmi göstermez. Rüzgâr ani hamlelerle ortalamanın
+Rüzgârın birkaç saniyeliğine aniden sertleşmesine hamle denir. Tahminlerdeki ortalama rüzgâr hızı tüm resmi göstermez. Rüzgâr ani hamlelerle ortalamanın
 belirgin şekilde üstüne çıkabilir. Hamleli günlerde yelken seçimini ortalamaya değil hamlelere
 göre yap. Seviyenin üst sınırına yakın bir ortalama, hamlelerle bu sınırı aşabilir.
 

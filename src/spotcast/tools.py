@@ -27,6 +27,7 @@ from spotcast.explain import turkish_date
 from spotcast.model import load_model, predict_conditions
 from spotcast.profiles import PROFILES, ActivityProfile, get_profile
 from spotcast.recommend import Preferences, find_windows, recommend
+from spotcast.uncertainty import days_ahead, lead_time_note
 
 # Only the sports and levels we have profiles for. In the schema these become a list of
 # allowed values (an enum), so the LLM can't send "rüzgâr sörfü" or "orta".
@@ -243,9 +244,13 @@ def check_conditions(args: CheckConditionsArgs) -> dict:
         warnings.append(
             "SpotCast has no local guide for this place: check local dangers."
         )
+    ahead = days_ahead(args.day, now())
+    if note := lead_time_note(ahead):
+        warnings.append(note)
 
     return {
         "day": turkish_date(pd.Timestamp(args.day)),
+        "days_ahead": ahead,
         "sport": profile.sport,
         "level": profile.level,
         "daylight_hours": [
@@ -273,6 +278,13 @@ def check_conditions(args: CheckConditionsArgs) -> dict:
 
 
 # ---------- Tool 3: recommend_spots (known spots) ----------
+
+
+def lead_time(start: datetime) -> dict:
+    """How many days ahead a window is, with a warning if that is too far to trust."""
+    ahead = days_ahead(start, now())
+    note = lead_time_note(ahead)
+    return {"days_ahead": ahead, "warnings": [note] if note else []}
 
 
 class RecommendSpotsArgs(ProfileArgs):
@@ -309,6 +321,7 @@ def recommend_spots(args: RecommendSpotsArgs) -> dict:
                 "marginal_hours": int(row["hours"] - row["good_hours"]),
                 "avg_wind_knots": round(float(row["avg_wind_kn"]), 1),
                 "max_wave_metres": round(float(row["max_wave_m"]), 2),
+                **lead_time(row["start"]),
             }
             for _, row in best.iterrows()
         ],

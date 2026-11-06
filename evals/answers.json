@@ -1,0 +1,249 @@
+{
+  "description": "Agent answer test set. Tool results are FROZEN (fixtures), so the weather never changes and only the LLM's behaviour is measured. 'Today' is 2026-11-05 (Thursday). Checks: must_call (tools the agent must use), arguments (values the agent must send), must_mention (regexes the answer must contain), judge (an LLM checks the answer against the knowledge excerpts).",
+  "now": "2026-11-05T08:00",
+  "cases": [
+    {
+      "id": "mersin_all_bad",
+      "question": "Cumartesi Mersin sahilinde rüzgâr sörfü yapmak istiyorum, orta seviyedeyim. Uygun mu?",
+      "must_call": ["find_location", "check_conditions"],
+      "arguments": {"check_conditions": {"day": "2026-11-07"}},
+      "must_mention": ["uygun (değil|olmadığ|olmayacak)|uygun\\b[^.]{0,30}\\b(yok|bulunmuyor|bulunamadı)", "rehber|yerel"],
+      "tools": {
+        "find_location": {
+          "places": [
+            {"name": "Mersin", "region": "Mersin", "latitude": 36.81, "longitude": 34.64},
+            {"name": "Mersin", "region": "Of, Trabzon", "latitude": 40.95, "longitude": 40.27}
+          ]
+        },
+        "check_conditions": {
+          "day": "7 Kasım Cumartesi",
+          "sport": "windsurf",
+          "level": "intermediate",
+          "daylight_hours": [
+            {"hour": "08:00", "wind_knots": 1.8, "wave_metres": 0.2, "label": "bad"},
+            {"hour": "10:00", "wind_knots": 3.1, "wave_metres": 0.2, "label": "bad"},
+            {"hour": "12:00", "wind_knots": 5.2, "wave_metres": 0.3, "label": "bad"},
+            {"hour": "14:00", "wind_knots": 6.0, "wave_metres": 0.3, "label": "bad"},
+            {"hour": "16:00", "wind_knots": 4.4, "wave_metres": 0.2, "label": "bad"}
+          ],
+          "label_counts": {"bad": 5},
+          "best_window": null,
+          "local_guide_spot": null,
+          "warnings": ["SpotCast has no local guide for this place: check local dangers."]
+        }
+      }
+    },
+    {
+      "id": "alacati_all_marginal",
+      "question": "Cumartesi Alaçatı'da rüzgâr sörfü için koşullar nasıl? Orta seviyedeyim.",
+      "must_call": ["check_conditions"],
+      "arguments": {"check_conditions": {"day": "2026-11-07"}},
+      "must_mention": ["sınırda"],
+      "tools": {
+        "find_location": {
+          "places": [{"name": "Alaçatı", "region": "Çeşme, İzmir", "latitude": 38.27, "longitude": 26.37}]
+        },
+        "check_conditions": {
+          "day": "7 Kasım Cumartesi",
+          "sport": "windsurf",
+          "level": "intermediate",
+          "daylight_hours": [
+            {"hour": "08:00", "wind_knots": 7.5, "wave_metres": 0.4, "label": "bad"},
+            {"hour": "10:00", "wind_knots": 11.2, "wave_metres": 0.6, "label": "marginal"},
+            {"hour": "12:00", "wind_knots": 12.8, "wave_metres": 0.7, "label": "marginal"},
+            {"hour": "14:00", "wind_knots": 13.6, "wave_metres": 0.8, "label": "marginal"},
+            {"hour": "16:00", "wind_knots": 9.1, "wave_metres": 0.6, "label": "bad"}
+          ],
+          "label_counts": {"marginal": 3, "bad": 2},
+          "best_window": {"hours": "10:00-14:00", "good_hours": 0, "avg_wind_knots": 12.5},
+          "local_guide_spot": "Alaçatı",
+          "warnings": []
+        }
+      }
+    },
+    {
+      "id": "akyaka_good",
+      "question": "Pazar günü Akyaka'da rüzgâr sörfü yapabilir miyim? Orta seviyedeyim.",
+      "must_call": ["check_conditions"],
+      "arguments": {"check_conditions": {"day": "2026-11-08"}},
+      "must_mention": ["\\buygun\\b"],
+      "tools": {
+        "find_location": {
+          "places": [{"name": "Akyaka", "region": "Ula, Muğla", "latitude": 37.05, "longitude": 28.33}]
+        },
+        "check_conditions": {
+          "day": "8 Kasım Pazar",
+          "sport": "windsurf",
+          "level": "intermediate",
+          "daylight_hours": [
+            {"hour": "09:00", "wind_knots": 6.3, "wave_metres": 0.2, "label": "bad"},
+            {"hour": "11:00", "wind_knots": 12.4, "wave_metres": 0.3, "label": "marginal"},
+            {"hour": "12:00", "wind_knots": 16.1, "wave_metres": 0.4, "label": "good"},
+            {"hour": "13:00", "wind_knots": 17.5, "wave_metres": 0.5, "label": "good"},
+            {"hour": "14:00", "wind_knots": 18.2, "wave_metres": 0.5, "label": "good"},
+            {"hour": "15:00", "wind_knots": 16.9, "wave_metres": 0.5, "label": "good"},
+            {"hour": "16:00", "wind_knots": 13.0, "wave_metres": 0.4, "label": "marginal"}
+          ],
+          "label_counts": {"good": 4, "marginal": 2, "bad": 1},
+          "best_window": {"hours": "11:00-16:00", "good_hours": 4, "avg_wind_knots": 15.7},
+          "local_guide_spot": "Akyaka",
+          "warnings": []
+        }
+      }
+    },
+    {
+      "id": "lake_no_waves",
+      "question": "Yarın Eğirdir Gölü'nde rüzgâr sörfü yapsam olur mu? Orta seviyedeyim.",
+      "must_call": ["find_location", "check_conditions"],
+      "arguments": {"check_conditions": {"day": "2026-11-06"}},
+      "must_mention": ["dalga", "rehber|yerel"],
+      "tools": {
+        "find_location": {
+          "places": [{"name": "Eğirdir", "region": "Eğirdir, Isparta", "latitude": 37.87, "longitude": 30.85}]
+        },
+        "check_conditions": {
+          "day": "6 Kasım Cuma",
+          "sport": "windsurf",
+          "level": "intermediate",
+          "daylight_hours": [
+            {"hour": "09:00", "wind_knots": 8.2, "wave_metres": null, "label": "unknown"},
+            {"hour": "12:00", "wind_knots": 11.6, "wave_metres": null, "label": "unknown"},
+            {"hour": "15:00", "wind_knots": 12.3, "wave_metres": null, "label": "unknown"}
+          ],
+          "label_counts": {"unknown": 3},
+          "best_window": null,
+          "local_guide_spot": null,
+          "warnings": [
+            "No wave data here (on land or too close to the shore); no verdict.",
+            "SpotCast has no local guide for this place: check local dangers."
+          ]
+        }
+      }
+    },
+    {
+      "id": "alacati_storm",
+      "question": "Cumartesi Alaçatı'da çok rüzgâr varmış, orta seviyedeyim, rüzgâr sörfüne çıkayım mı?",
+      "must_call": ["check_conditions"],
+      "arguments": {"check_conditions": {"day": "2026-11-07"}},
+      "must_mention": ["uygun (değil|olmadığ)|uygun\\b[^.]{0,30}\\b(yok|bulunmuyor|bulunamadı)|çıkma|girme"],
+      "tools": {
+        "find_location": {
+          "places": [{"name": "Alaçatı", "region": "Çeşme, İzmir", "latitude": 38.27, "longitude": 26.37}]
+        },
+        "check_conditions": {
+          "day": "7 Kasım Cumartesi",
+          "sport": "windsurf",
+          "level": "intermediate",
+          "daylight_hours": [
+            {"hour": "09:00", "wind_knots": 27.4, "wave_metres": 1.9, "label": "bad"},
+            {"hour": "12:00", "wind_knots": 31.8, "wave_metres": 2.4, "label": "bad"},
+            {"hour": "15:00", "wind_knots": 33.2, "wave_metres": 2.7, "label": "bad"}
+          ],
+          "label_counts": {"bad": 3},
+          "best_window": null,
+          "local_guide_spot": "Alaçatı",
+          "warnings": []
+        }
+      }
+    },
+    {
+      "id": "weekend_recommend",
+      "question": "Bu hafta sonu rüzgâr sörfü için nereye gideyim? Orta seviyedeyim.",
+      "must_call": ["recommend_spots"],
+      "arguments": {},
+      "must_mention": ["Alaçatı", "Cumartesi"],
+      "tools": {
+        "recommend_spots": {
+          "known_spots": ["Kuşadası Pamucak", "Alaçatı", "Akyaka"],
+          "windows_best_first": [
+            {"spot": "Alaçatı", "day": "7 Kasım Cumartesi", "hours": "10:00-17:00", "good_hours": 5, "marginal_hours": 3, "avg_wind_knots": 16.2, "max_wave_metres": 0.9},
+            {"spot": "Kuşadası Pamucak", "day": "8 Kasım Pazar", "hours": "11:00-15:00", "good_hours": 2, "marginal_hours": 3, "avg_wind_knots": 13.1, "max_wave_metres": 0.7},
+            {"spot": "Alaçatı", "day": "8 Kasım Pazar", "hours": "12:00-15:00", "good_hours": 0, "marginal_hours": 4, "avg_wind_knots": 11.8, "max_wave_metres": 0.6}
+          ]
+        }
+      }
+    },
+    {
+      "id": "too_far_ahead",
+      "question": "İki hafta sonra cumartesi Mersin'de rüzgâr sörfü yapacağım, orta seviyedeyim. Rüzgâr nasıl olacak?",
+      "must_call": [],
+      "arguments": {},
+      "must_mention": ["7 gün|11 Kasım|tahmin"],
+      "tools": {
+        "find_location": {
+          "places": [{"name": "Mersin", "region": "Mersin", "latitude": 36.81, "longitude": 34.64}]
+        },
+        "check_conditions": {
+          "error": "2026-11-21 is outside the forecast. Only 2026-11-05 to 2026-11-11 can be checked."
+        }
+      }
+    },
+    {
+      "id": "rip_current",
+      "question": "Dip akıntısına yakalanırsam ne yapmalıyım?",
+      "must_call": ["search_knowledge"],
+      "arguments": {},
+      "must_mention": ["akıntı"],
+      "judge": true,
+      "tools": {
+        "search_knowledge": {
+          "excerpts": [
+            {
+              "title": "Dip Akıntıları",
+              "section": "Dip akıntısına yakalanırsan ne yapmalı",
+              "text": "Akıntıyla mücadele etme. Önce akıntının dışına çık, sonra kıyıya doğru yüz. Kaçamıyorsan sırtüstü suyun üstünde kal ya da olduğun yerde suyun üstünde dur. Yardıma ihtiyacın olursa seslen ya da el sallayarak yardım iste."
+            },
+            {
+              "title": "Dip Akıntıları",
+              "section": "Dip akıntısı nedir?",
+              "text": "Dip akıntıları kıyıdan uzağa, açık denize doğru akan güçlü su akıntılarıdır. En güçlü yüzücüyü bile açığa sürükleyebilirler."
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "offshore_wind",
+      "question": "Rüzgâr karadan denize doğru eserse rüzgâr sörfü yapmak riskli mi?",
+      "must_call": ["search_knowledge"],
+      "arguments": {},
+      "must_mention": ["açığa|sürükle"],
+      "judge": true,
+      "tools": {
+        "search_knowledge": {
+          "excerpts": [
+            {
+              "title": "Rüzgâr sörfü güvenlik kuralları",
+              "section": "Rüzgâr yönü: karadan denize esen rüzgâr (offshore)",
+              "text": "Karadan denize doğru esen rüzgâr (offshore) en tehlikeli rüzgâr yönüdür. Kıyıda rüzgâr zayıf ve yüzey sakin görünür, ama açıldıkça rüzgâr güçlenir. Düşer ya da yorulursan rüzgâr seni açığa sürükler ve kıyıya geri dönmek zorlaşır. Kıyıya paralel (side-shore) veya hafifçe denizden karaya esen (side-onshore) rüzgâr en güvenli ve en uygun yöndür. Tam denizden karaya esen rüzgârda (onshore) suya çıkmak dalgalar yüzünden zordur ama sürüklenme riski azdır."
+            },
+            {
+              "title": "Rüzgâr Sörfü Alanı Kuralları",
+              "section": "Rüzgâr sörfü alanı kuralları: rüzgâr yönü",
+              "text": "Rüzgâr karadan denize doğru esiyorsa suya girmeyin."
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "broken_sail",
+      "question": "Rüzgâr sörfü yaparken yelkenim kırılırsa ne yapmalıyım?",
+      "must_call": ["search_knowledge"],
+      "arguments": {},
+      "must_mention": ["tahta"],
+      "judge": true,
+      "tools": {
+        "search_knowledge": {
+          "excerpts": [
+            {
+              "title": "Rüzgâr sörfü güvenlik kuralları",
+              "section": "Tahtadan ayrılmamak",
+              "text": "Bir sorun olduğunda (yelken kırıldı, yoruldun, rüzgâr düştü) tahtadan asla ayrılma. Tahta yüzer, seni taşır ve uzaktan daha kolay görünür. Kıyıya yüzerek dönmeye çalışmak genellikle tahtayla kalmaktan daha tehlikelidir. Yelkeni tahtanın üzerine toplayıp kürek çeker gibi kıyıya ilerlemek (self-rescue) öğrenilmesi gereken temel bir beceridir."
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

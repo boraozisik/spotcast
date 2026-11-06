@@ -25,6 +25,7 @@ from spotcast.explain import CAUTION, turkish_date
 from spotcast.llm import chat, chat_with_tools
 from spotcast.profiles import PROFILES
 from spotcast.tools import TOOLS, TOOLS_BY_NAME, ProfileArgs, Tool
+from spotcast.uncertainty import notes_for_results
 
 MAX_STEPS = 6  # each step is one LLM call; a normal question needs 2-4
 
@@ -87,6 +88,7 @@ class AgentResult:
     answer: str
     steps: list[Step] = field(default_factory=list)
     stopped_early: bool = False
+    llm_text: str = ""  # only what the LLM wrote, before code adds notes (for evaluation)
 
 
 def date_table(now: datetime) -> str:
@@ -94,7 +96,8 @@ def date_table(now: datetime) -> str:
     lines = ["Dates (today first):"]
     for offset in range(7):
         day = now + timedelta(days=offset)
-        label = "today" if offset == 0 else ("tomorrow" if offset == 1 else "")
+        # Turkish words too: the user writes "yarın", and the model missed "tomorrow" for it
+        label = {0: "today (bugün)", 1: "tomorrow (yarın)"}.get(offset, "")
         lines.append(f"- {turkish_date(day)} = {day:%Y-%m-%d} {label}".rstrip())
     return "\n".join(lines)
 
@@ -227,12 +230,18 @@ def decide_profile(said: UserProfile) -> Who:
 def finish_answer(content: str, steps: list[Step], level_note: str) -> str:
     """Add the texts that code writes, never the LLM: level note, caution, source quote."""
     answer = content.strip()
-    gave_conditions = any(
-        s.tool in ("check_conditions", "recommend_spots") and "error" not in s.result
+    conditions = [
+        s.result
         for s in steps
-    )
-    if gave_conditions:
-        answer += level_note + f"\n\n⚠️ {CAUTION}"
+        if s.tool in ("check_conditions", "recommend_spots") and "error" not in s.result
+    ]
+    if conditions:
+        answer += level_note
+        # Uncertainty (far-ahead forecast, no wave data): the LLM is asked to pass tool
+        # warnings on, but asking is not a guarantee, so code adds them too.
+        for note in notes_for_results(conditions):
+            answer += f"\n\n⏳ {note}"
+        answer += f"\n\n⚠️ {CAUTION}"
     return answer + quoted_source(steps)
 
 
@@ -267,8 +276,9 @@ def run_agent(
 
         calls = reply.get("tool_calls") or []
         if not calls:  # no tool requested: this is the final answer
-            answer = finish_answer(reply.get("content") or "", steps, level_note)
-            return AgentResult(answer, steps)
+            content = reply.get("content") or ""
+            answer = finish_answer(content, steps, level_note)
+            return AgentResult(answer, steps, llm_text=content.strip())
 
         for call in calls:
             name = call["function"]["name"]

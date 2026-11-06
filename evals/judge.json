@@ -1,0 +1,75 @@
+{
+  "description": "Test set for the LLM judge itself: source + answer pairs labelled by hand. 'contradicts' = the answer says something the source says is wrong or tells the opposite; 'adds' = the answer gives advice the source does not contain. Before trusting the judge's verdicts, measure how often it agrees with these labels.",
+  "cases": [
+    {
+      "note": "faithful, close to the source",
+      "source": "Akıntıyla mücadele etme. Önce akıntının dışına çık, sonra kıyıya doğru yüz. Kaçamıyorsan sırtüstü suyun üstünde kal ya da olduğun yerde suyun üstünde dur.",
+      "answer": "Akıntıya karşı mücadele etmemelisin. Önce akıntının dışına çık, ardından kıyıya doğru yüz. Çıkamazsan sırtüstü suyun üstünde kal.",
+      "contradicts": false,
+      "adds": false
+    },
+    {
+      "note": "the real mistake from Stage 7: the order of the steps is inverted",
+      "source": "Akıntıyla mücadele etme. Önce akıntının dışına çık, sonra kıyıya doğru yüz. Kaçamıyorsan sırtüstü suyun üstünde kal ya da olduğun yerde suyun üstünde dur.",
+      "answer": "Akıntının dışına çıkmaya çalışma, doğrudan kıyıya doğru yüz. Yorulursan sırtüstü dinlen.",
+      "contradicts": true,
+      "adds": false
+    },
+    {
+      "note": "adds advice that is not in the source (the 'çırpınma' case from Stage 6)",
+      "source": "Akıntıyla mücadele etme. Önce akıntının dışına çık, sonra kıyıya doğru yüz. Yardıma ihtiyacın olursa seslen ya da el sallayarak yardım iste.",
+      "answer": "Akıntıyla mücadele etme, önce akıntının dışına çık, sonra kıyıya yüz. Paniğe kapılıp çırpınma ve mutlaka can yeleği giy.",
+      "contradicts": false,
+      "adds": true
+    },
+    {
+      "note": "faithful",
+      "source": "Karadan denize doğru esen rüzgâr (offshore) en tehlikeli rüzgâr yönüdür. Düşer ya da yorulursan rüzgâr seni açığa sürükler ve kıyıya geri dönmek zorlaşır.",
+      "answer": "Evet, risklidir. Karadan denize esen rüzgâr en tehlikeli yöndür: düşersen veya yorulursan seni açığa sürükler ve kıyıya dönmen zorlaşır.",
+      "contradicts": false,
+      "adds": false
+    },
+    {
+      "note": "opposite meaning: offshore described as easy",
+      "source": "Karadan denize doğru esen rüzgâr (offshore) en tehlikeli rüzgâr yönüdür. Düşer ya da yorulursan rüzgâr seni açığa sürükler ve kıyıya geri dönmek zorlaşır.",
+      "answer": "Karadan esen rüzgârda deniz sakin olduğu için suya çıkmak kolaydır; rüzgâr seni kıyıya doğru iter, sürüklenme riski azdır.",
+      "contradicts": true,
+      "adds": false
+    },
+    {
+      "note": "contradicts a rule: storm is 'never', the answer says 'experienced only'",
+      "source": "Fırtınada rüzgâr sörfü yapılmaz; 8 Beaufort ve üzerinde suya girilmez.",
+      "answer": "8 Beaufort ve üzerinde sadece deneyimli sörfçüler suya girebilir, orta seviye girmemeli.",
+      "contradicts": true,
+      "adds": false
+    },
+    {
+      "note": "a wrong number: 4 Beaufort is 11-16 knot",
+      "source": "4 Beaufort (Orta rüzgâr), 11-16 knot: Küçük dalgalar uzar, beyaz köpüklü dalga tepeleri sıklaşır.",
+      "answer": "4 Beaufort yaklaşık 20-25 knot rüzgâr demektir; dalga tepelerinde beyaz köpük sıklaşır.",
+      "contradicts": true,
+      "adds": false
+    },
+    {
+      "note": "faithful but shorter: leaving things out is not a contradiction",
+      "source": "Bir sorun olduğunda (yelken kırıldı, yoruldun, rüzgâr düştü) tahtadan asla ayrılma. Tahta yüzer, seni taşır ve uzaktan daha kolay görünür. Kıyıya yüzerek dönmeye çalışmak genellikle tahtayla kalmaktan daha tehlikelidir.",
+      "answer": "Yelkenin kırılırsa tahtadan asla ayrılma; tahta yüzer ve uzaktan daha kolay görünürsün.",
+      "contradicts": false,
+      "adds": false
+    },
+    {
+      "note": "opposite advice: swim to shore instead of staying with the board",
+      "source": "Bir sorun olduğunda (yelken kırıldı, yoruldun, rüzgâr düştü) tahtadan asla ayrılma. Tahta yüzer, seni taşır ve uzaktan daha kolay görünür. Kıyıya yüzerek dönmeye çalışmak genellikle tahtayla kalmaktan daha tehlikelidir.",
+      "answer": "Yelkenin kırılırsa tahtayı bırakıp hızlıca kıyıya yüz; tahta seni yavaşlatır.",
+      "contradicts": true,
+      "adds": false
+    },
+    {
+      "note": "adds a new safety claim not in the source",
+      "source": "Mümkünse yalnız suya çıkma; çıkacaksan kıyıda birine nereye gittiğini ve ne zaman döneceğini söyle.",
+      "answer": "Yalnız çıkmamaya çalış, çıkarsan kıyıda birine nereye gideceğini ve ne zaman döneceğini söyle. Ayrıca yanında mutlaka bir düdük taşı, sahil güvenlik bunu zorunlu tutuyor.",
+      "contradicts": false,
+      "adds": true
+    }
+  ]
+}

@@ -17,16 +17,13 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
+from spotcast.beaufort import knots_range
 from spotcast.config import PROJECT_ROOT
 from spotcast.llm import VISION_MODEL, LLMOutputError, chat
 
 SAMPLES_DIR = PROJECT_ROOT / "samples" / "photos" / "beaufort"
 
-# Wind speed for each Beaufort force, in knots (WMO). Code converts; the model never does.
-BEAUFORT_KNOTS = [
-    (0, 1), (1, 3), (4, 6), (7, 10), (11, 16), (17, 21), (22, 27),
-    (28, 33), (34, 40), (41, 47), (48, 55), (56, 63), (64, None),
-]  # fmt: skip
+# Knots ↔ Beaufort conversions live in beaufort.py (code converts; the model never does)
 
 # What the sea looks like at each force (shortened from the WMO sea criteria). Giving the
 # model this reference is like giving a person the chart instead of asking from memory.
@@ -81,11 +78,6 @@ class PhotoResult:
         if self.assessment is None:
             return None
         return self.assessment.beaufort - self.actual
-
-
-def knots_range(beaufort: int) -> str:
-    low, high = BEAUFORT_KNOTS[beaufort]
-    return f"{low}+ knot" if high is None else f"{low}-{high} knot"
 
 
 def encode_image(path: Path) -> str:

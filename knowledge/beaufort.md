@@ -51,5 +51,5 @@ ve üzeri yalnızca ileri seviye içindir; orta seviye için tehlikelidir.
 - 11 Beaufort (Şiddetli fırtına), 56-63 knot
 - 12 Beaufort (Kasırga), 64 knot ve üzeri
 
-Rüzgâr sörfü için: 8 Beaufort ve üzerinde suya girilmez. Bu rüzgârlarda kıyıda bile dikkatli
+Rüzgâr sörfü için: Fırtınada rüzgâr sörfü yapılmaz; 8 Beaufort ve üzerinde suya girilmez. Bu rüzgârlarda kıyıda bile dikkatli
 olmak gerekir.

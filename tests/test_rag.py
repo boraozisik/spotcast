@@ -79,3 +79,25 @@ def test_every_reviewed_document_reaches_rag():
         meta, _ = parse_front_matter(path.read_text(encoding="utf-8"))
         if meta.get("status") != "draft":
             assert file in used, f"{file} has no '## ' section, so RAG never uses it"
+
+
+def test_keyword_query_keeps_only_safe_words():
+    from spotcast.rag import keyword_query
+
+    assert (
+        keyword_query("Fırtınada sörf yapılır mı?") == "Fırtınada | sörf | yapılır | mı"
+    )
+    assert (
+        keyword_query("'; DROP TABLE x; --") == "DROP | TABLE"
+    )  # no SQL or query syntax
+    assert keyword_query("?!") is None
+
+
+def test_reciprocal_rank_fusion_rewards_agreement():
+    from spotcast.rag import reciprocal_rank_fusion
+
+    by_meaning = [1, 2, 3]
+    by_words = [3, 4]
+    # 3 is in both lists: 1/63 + 1/61 beats even 1, which is first in only one list
+    assert reciprocal_rank_fusion(by_meaning, by_words)[:2] == [3, 1]
+    assert reciprocal_rank_fusion([7, 8]) == [7, 8]
