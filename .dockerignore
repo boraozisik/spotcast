@@ -1,0 +1,32 @@
+# Only pyproject.toml, uv.lock, README.md and src/ are needed to build the image.
+# Everything else stays out: smaller, faster builds and no secrets in the image.
+
+# Secrets: never inside an image
+.env
+.env.*
+!.env.example
+
+# Local environments and caches
+.venv
+**/__pycache__
+**/*.pyc
+.ruff_cache
+.pytest_cache
+
+# Data, models and experiment files (models/ is mounted at run time)
+data/
+models/
+mlflow.db
+mlartifacts/
+mlruns/
+
+# Personal files
+samples/
+study/
+CLAUDE.md
+
+# Not needed to run the API
+.git
+tests/
+evals/
+knowledge/

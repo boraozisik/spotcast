@@ -17,6 +17,7 @@ from spotcast.forecasting import (
 )
 
 TEST_YEAR = 2025
+EXPERIMENT = "wind-forecast-48h"  # MLflow experiment shared with the LSTM runs
 SPOT_NAMES = [spot.name for spot in SPOTS]
 MODEL_FEATURES = [*FORECAST_FEATURES, "spot"]
 
@@ -146,3 +147,42 @@ def main() -> None:
     print("\n=== Most useful features (XGBoost) ===")
     importance = pd.Series(model.feature_importances_, index=MODEL_FEATURES)
     print(importance.sort_values(ascending=False).head(10).round(3))
+
+    # One MLflow run per method, so they can be compared side by side
+    from spotcast.tracking import metric_key, mlflow, run
+
+    data = {
+        "horizon_hours": HORIZON_HOURS,
+        "test_year": TEST_YEAR,
+        "train_years": f"{HISTORY_START.year}-{TEST_YEAR - 1}",
+        "train_rows": len(train),
+        "test_rows": len(test),
+    }
+    tuned = [
+        "n_estimators",
+        "learning_rate",
+        "max_depth",
+        "subsample",
+        "colsample_bytree",
+    ]
+    for name, predicted in forecasts.items():
+        with run(EXPERIMENT, name):
+            settings = (
+                {p: model.get_params()[p] for p in tuned} if name == "xgboost" else {}
+            )
+            mlflow.log_params({"method": name, **data, **settings})
+            scores = regression_metrics(test[TARGET], predicted)
+            mlflow.log_metrics({key.lower(): value for key, value in scores.items()})
+            mlflow.log_metrics(
+                {
+                    f"mae_{metric_key(spot)}": maes[name]
+                    for spot, maes in per_spot.items()
+                }
+            )
+            if name == "xgboost":
+                mlflow.log_metric("train_mae", train_mae)
+                ranked = importance.sort_values(ascending=False)
+                mlflow.log_dict(
+                    {feature: float(v) for feature, v in ranked.items()},
+                    "feature_importance.json",
+                )

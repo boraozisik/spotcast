@@ -75,7 +75,9 @@ def find_windows(
 
     hours["score"] = [
         hour_score(label, wind, profile)
-        for label, wind in zip(hours["prediction"], hours["wind_speed_10m"])
+        for label, wind in zip(
+            hours["prediction"], hours["wind_speed_10m"], strict=True
+        )
     ]
 
     # A new window starts whenever the spot or day changes, or an hour is missing in between

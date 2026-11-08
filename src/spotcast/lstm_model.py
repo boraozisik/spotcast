@@ -6,6 +6,7 @@ reads the last WINDOW_HOURS hours one by one, in order, and learns by itself wha
 Run with: uv run spotcast-lstm
 """
 
+from collections.abc import Callable
 from dataclasses import dataclass
 
 import numpy as np
@@ -19,11 +20,13 @@ from spotcast.config import HISTORY_END, HISTORY_START
 from spotcast.data import load_history
 from spotcast.forecasting import HORIZON_HOURS, TARGET, cyclical, make_forecast_table
 from spotcast.wind_model import (
+    EXPERIMENT,
     SPOT_NAMES,
     climatology_forecast,
     compare,
     model_inputs,
     persistence_forecast,
+    regression_metrics,
     target_time,
     train_xgboost,
 )
@@ -186,6 +189,7 @@ def train_lstm(
     max_epochs: int = 20,
     patience: int = 3,
     batch_size: int = 256,
+    on_epoch: Callable[[int, float], None] | None = None,
 ) -> WindLSTM:
     """Train with early stopping: stop when validation error hasn't improved for `patience` epochs."""
     torch.manual_seed(SEED)
@@ -213,6 +217,8 @@ def train_lstm(
         val_pred = predict_knots(model, validation, scaler, device)
         val_mae = float(np.mean(np.abs(val_pred - validation.targets)))
         print(f"  epoch {epoch:2d}  validation MAE {val_mae:.3f}")
+        if on_epoch:
+            on_epoch(epoch, val_mae)
 
         if val_mae < best_mae:
             best_mae, epochs_without_improvement = val_mae, 0
@@ -259,8 +265,35 @@ def main() -> None:
     )
     scaler = Scaler.fit(train_seq)
 
+    from spotcast.tracking import mlflow, run
+
     print(f"\nTraining LSTM on {pick_device()}...")
-    lstm = train_lstm(train_seq, val_seq, scaler)
+    with run(EXPERIMENT, "lstm"):
+        mlflow.log_params(
+            {
+                "method": "lstm",
+                "horizon_hours": HORIZON_HOURS,
+                "test_year": TEST_YEAR,
+                "train_years": f"{HISTORY_START.year}-{VALIDATION_YEAR - 1}",
+                "validation_year": VALIDATION_YEAR,
+                "window_hours": WINDOW_HOURS,
+                "step_features": ",".join(STEP_FEATURES),
+                "hidden_size": 64,
+                "learning_rate": 1e-3,
+                "batch_size": 256,
+                "patience": 3,
+            }
+        )
+        # Each epoch becomes one point on a line chart in the MLflow UI
+        lstm = train_lstm(
+            train_seq,
+            val_seq,
+            scaler,
+            on_epoch=lambda epoch, mae: mlflow.log_metric("val_mae", mae, step=epoch),
+        )
+        lstm_test = predict_knots(lstm, test_seq, scaler, pick_device())
+        scores = regression_metrics(test_seq.targets, lstm_test)
+        mlflow.log_metrics({key.lower(): value for key, value in scores.items()})
 
     train_table, test_table = table[train_mask], table[test_mask]
     # n_jobs=1: XGBoost and PyTorch crash together on macOS if XGBoost uses many threads
@@ -277,9 +310,7 @@ def main() -> None:
         "xgboost (2022-2024)": pd.Series(
             xgb_more_years.predict(model_inputs(test_table)), index=test_table.index
         ),
-        "lstm (2022-2023)": pd.Series(
-            predict_knots(lstm, test_seq, scaler, pick_device()), index=test_table.index
-        ),
+        "lstm (2022-2023)": pd.Series(lstm_test, index=test_table.index),
     }
     print(f"\n=== Wind in {HORIZON_HOURS} h, test year {TEST_YEAR} (knots) ===")
     print(compare(test_table, forecasts))

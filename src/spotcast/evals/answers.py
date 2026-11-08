@@ -110,9 +110,7 @@ def numbers_with_units(text: str) -> list[tuple[float, str]]:
     """'1,8 ile 6 knot' → [(1.8, 'knot'), (6.0, 'knot')]."""
     found = []
     for match in NUMBER_WITH_UNIT.finditer(text):
-        unit = (
-            "knot" if re.fullmatch(UNITS["knot"], match["unit"], re.I) else "metre"
-        )
+        unit = "knot" if re.fullmatch(UNITS["knot"], match["unit"], re.I) else "metre"
         for number in match.groups()[:2]:
             if number:
                 found.append((float(number.replace(",", ".")), unit))
@@ -300,7 +298,9 @@ def check_answer(
             all(str(args.get(k)) == str(v) for k, v in expected.items())
             for args in sent
         )
-        checks.append(Check(f"{tool} arguments", ok, f"expected {expected}, sent {sent}"))
+        checks.append(
+            Check(f"{tool} arguments", ok, f"expected {expected}, sent {sent}")
+        )
 
     missing_words = [p for p in case.must_mention if not re.search(p, text, re.I)]
     checks.append(Check("mentions", not missing_words, f"missing {missing_words}"))
@@ -315,16 +315,18 @@ def check_answer(
         claims = suitable_claims(text)
         checks.append(Check("no 'uygun' without good hours", not claims, f"{claims}"))
 
-    invented = invented_numbers(
-        text, [s.result for s in result.steps], case.question
+    invented = invented_numbers(text, [s.result for s in result.steps], case.question)
+    checks.append(
+        Check("numbers from tools", not invented, f"not in tools: {invented}")
     )
-    checks.append(Check("numbers from tools", not invented, f"not in tools: {invented}"))
 
     source = knowledge_given(result)
     if case.judge and ask_judge and source and text:
         verdict = ask_judge(source, text)
         problems = "; ".join(verdict.problems)
-        checks.append(Check("judge: no contradiction", not verdict.contradicts, problems))
+        checks.append(
+            Check("judge: no contradiction", not verdict.contradicts, problems)
+        )
         checks.append(Check("judge: nothing added", not verdict.adds, problems))
     return checks
 

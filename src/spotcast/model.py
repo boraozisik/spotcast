@@ -57,15 +57,31 @@ def predict_with_guardrail(
     return [
         "bad" if is_unsafe(profile, wind, wave, day) else prediction
         for prediction, wind, wave, day in zip(
-            predictions, X["wind_speed_10m"], X["wave_height"], X["is_day"]
+            predictions, X["wind_speed_10m"], X["wave_height"], X["is_day"], strict=True
         )
     ]
 
 
+def classification_scores(y_true: pd.Series, predictions: Any) -> dict[str, float]:
+    """The numbers worth tracking: accuracy, macro F1, and precision/recall/F1 per class."""
+    report = classification_report(
+        y_true, predictions, labels=CLASSES, output_dict=True, zero_division=0
+    )
+    scores = {
+        "accuracy": accuracy_score(y_true, predictions),
+        "macro_f1": report["macro avg"]["f1-score"],
+    }
+    for label in CLASSES:
+        scores[f"precision_{label}"] = report[label]["precision"]
+        scores[f"recall_{label}"] = report[label]["recall"]
+        scores[f"f1_{label}"] = report[label]["f1-score"]
+    return scores
+
+
 def evaluate(
     name: str, model: ClassifierMixin, X_test: pd.DataFrame, y_test: pd.Series
-) -> None:
-    """Print accuracy, per-class precision/recall and the confusion matrix."""
+) -> dict[str, float]:
+    """Print accuracy, per-class precision/recall and the confusion matrix; return the scores."""
     predictions = model.predict(X_test)
 
     print(f"=== {name} ===")
@@ -80,16 +96,19 @@ def evaluate(
     print("Confusion matrix (rows = actual, columns = predicted):")
     print(pd.DataFrame(matrix, index=CLASSES, columns=CLASSES))
     print()
+    return classification_scores(y_test, predictions)
 
 
-def show_tree(tree: DecisionTreeClassifier) -> None:
-    """Print the learned rules and how much each feature was used."""
+def show_tree(tree: DecisionTreeClassifier) -> str:
+    """Print the learned rules and how much each feature was used; return the rules."""
+    rules = export_text(tree, feature_names=FEATURES, decimals=2)
     print("=== Rules learned by the tree ===")
-    print(export_text(tree, feature_names=FEATURES, decimals=2))
+    print(rules)
 
     importances = pd.Series(tree.feature_importances_, index=FEATURES)
     print("Feature importance (share of the tree's decisions):")
     print(importances.sort_values(ascending=False).round(3))
+    return rules
 
 
 def model_path(profile: ActivityProfile, models_dir: Path = MODELS_DIR) -> Path:

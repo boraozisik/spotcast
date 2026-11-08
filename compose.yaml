@@ -8,8 +8,9 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB}
     ports:
-      # host:container — 5432 on this Mac is already used by the local PostgreSQL install
-      - "${POSTGRES_PORT}:5432"
+      # host:container — 5432 on this Mac is already used by the local PostgreSQL install.
+      # 127.0.0.1: reachable only from this computer, not from others on the same Wi-Fi.
+      - "127.0.0.1:${POSTGRES_PORT}:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -17,6 +18,24 @@ services:
       interval: 5s
       timeout: 3s
       retries: 10
+    restart: unless-stopped
+
+  api:
+    build: .
+    container_name: spotcast-api
+    ports:
+      - "127.0.0.1:8000:8000"
+    environment:
+      # Inside Docker the database is reached by its service name, on its own port
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      # Ollama runs on the Mac itself, outside Docker
+      OLLAMA_URL: http://host.docker.internal:11434
+    volumes:
+      # The trained model, read-only. Run `uv run spotcast` first to create it.
+      - ./models:/app/models:ro
+    depends_on:
+      db:
+        condition: service_healthy
     restart: unless-stopped
 
 volumes:

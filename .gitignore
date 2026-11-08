@@ -23,3 +23,11 @@ models/
 
 # Personal sample photos (may contain GPS location in EXIF)
 samples/
+
+# Personal study workbook (PDF and its sources; deleted when the project ends)
+study/
+
+# MLflow experiment tracking (runs, model registry, saved files)
+mlflow.db
+mlartifacts/
+mlruns/
