@@ -88,7 +88,9 @@ class AgentResult:
     answer: str
     steps: list[Step] = field(default_factory=list)
     stopped_early: bool = False
-    llm_text: str = ""  # only what the LLM wrote, before code adds notes (for evaluation)
+    llm_text: str = (
+        ""  # only what the LLM wrote, before code adds notes (for evaluation)
+    )
 
 
 def date_table(now: datetime) -> str:

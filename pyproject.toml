@@ -47,7 +47,18 @@ build-backend = "uv_build"
 [dependency-groups]
 dev = [
     "pytest>=9.2.0",
+    "ruff>=0.17.4",
 ]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+# A warning today is often an error after the next library update: fail on it now
+filterwarnings = ["error"]
+
+[tool.ruff.lint]
+# E/W: style errors, F: real bugs (unused names, undefined variables), I: import order,
+# B: common bug patterns (bugbear), UP: newer Python syntax, SIM: simpler code
+select = ["E", "F", "W", "I", "B", "UP", "SIM"]
+# Line length is handled by the formatter. The long lines left are prompts and messages,
+# which read better unbroken.
+ignore = ["E501"]

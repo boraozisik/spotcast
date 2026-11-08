@@ -57,7 +57,7 @@ def predict_with_guardrail(
     return [
         "bad" if is_unsafe(profile, wind, wave, day) else prediction
         for prediction, wind, wave, day in zip(
-            predictions, X["wind_speed_10m"], X["wave_height"], X["is_day"]
+            predictions, X["wind_speed_10m"], X["wave_height"], X["is_day"], strict=True
         )
     ]
 

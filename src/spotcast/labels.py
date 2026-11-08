@@ -46,7 +46,7 @@ def add_labels(df: pd.DataFrame, profile: ActivityProfile) -> pd.DataFrame:
     labeled["label"] = [
         label_conditions(profile, wind, wave, day)
         for wind, wave, day in zip(
-            df["wind_speed_10m"], df["wave_height"], df["is_day"]
+            df["wind_speed_10m"], df["wave_height"], df["is_day"], strict=True
         )
     ]
     return labeled

@@ -114,7 +114,10 @@ def character_error_rate(expected: str, actual: str) -> float:
 
 def word_recall(expected: str, actual: str) -> float:
     """Share of the expected words that were read at all, in any order."""
-    words = lambda text: Counter(re.findall(r"[\w'.]+", normalize(text)))
+
+    def words(text: str) -> Counter:
+        return Counter(re.findall(r"[\w'.]+", normalize(text)))
+
     e, a = words(expected), words(actual)
     found = sum(min(count, a[word]) for word, count in e.items())
     return found / max(sum(e.values()), 1)

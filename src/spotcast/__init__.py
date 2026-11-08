@@ -108,7 +108,13 @@ def main() -> None:
     ]:
         print(f"\n=== Best windows: {title} ===")
         best = recommend(predicted, profile, prefs)
-        print("No window fits." if best.empty else best.round(2).to_string(index=False))
+        print(
+            "No window fits."
+            if best.empty
+            else best.round({"avg_wind_kn": 2, "max_wave_m": 2, "score": 2}).to_string(
+                index=False
+            )
+        )
 
 
 def show_forecast(predicted: pd.DataFrame) -> None:

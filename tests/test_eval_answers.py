@@ -44,7 +44,9 @@ def test_suitable_claims_ignore_negations():
 
 
 def test_numbers_with_units():
-    text = "Rüzgâr 1,8 ile 6 knot, en yüksek dalga 0.9 metre; öğlen 16-19 kn. Saat 12:00."
+    text = (
+        "Rüzgâr 1,8 ile 6 knot, en yüksek dalga 0.9 metre; öğlen 16-19 kn. Saat 12:00."
+    )
     assert numbers_with_units(text) == [
         (1.8, "knot"),
         (6.0, "knot"),
@@ -114,9 +116,7 @@ def test_safe_word_rule_is_for_condition_answers_only():
     result = AgentResult("", [], llm_text=text)
 
     assert "no 'güvenli'" not in by_name(check_answer(advice, result, ask_judge=None))
-    assert not by_name(check_answer(conditions, result, ask_judge=None))[
-        "no 'güvenli'"
-    ]
+    assert not by_name(check_answer(conditions, result, ask_judge=None))["no 'güvenli'"]
 
 
 def test_check_answer_wrong_day_fails():

@@ -1,9 +1,9 @@
 """Run the evaluations and print a score report.
 
-    uv run spotcast-eval                 # retrieval (fast, no chat LLM)
-    uv run spotcast-eval judge           # test the LLM judge on hand-labelled pairs
-    uv run spotcast-eval answers         # the agent's answers (slow: ~15 s per question)
-    uv run spotcast-eval answers --repeat 3 --only rip_current
+uv run spotcast-eval                 # retrieval (fast, no chat LLM)
+uv run spotcast-eval judge           # test the LLM judge on hand-labelled pairs
+uv run spotcast-eval answers         # the agent's answers (slow: ~15 s per question)
+uv run spotcast-eval answers --repeat 3 --only rip_current
 """
 
 import argparse
@@ -74,7 +74,10 @@ def run_answers(args: argparse.Namespace) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser(description="Run SpotCast's evaluations.")
     parser.add_argument(
-        "suite", nargs="?", default="retrieval", choices=["retrieval", "judge", "answers"]
+        "suite",
+        nargs="?",
+        default="retrieval",
+        choices=["retrieval", "judge", "answers"],
     )
     parser.add_argument("-k", type=int, default=3, help="How many search results count")
     parser.add_argument(

@@ -18,7 +18,9 @@ NOW = datetime(2026, 11, 5, 22, 0)  # late Thursday evening
 
 def test_days_ahead_counts_calendar_days_not_hours():
     assert days_ahead(date(2026, 11, 5), NOW) == 0
-    assert days_ahead(pd.Timestamp("2026-11-06 07:00"), NOW) == 1  # 9 hours, but tomorrow
+    assert (
+        days_ahead(pd.Timestamp("2026-11-06 07:00"), NOW) == 1
+    )  # 9 hours, but tomorrow
 
 
 @pytest.mark.parametrize(
