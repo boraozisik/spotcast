@@ -1,0 +1,27 @@
+# Netlify: builds the Next.js site in web/ as plain static files.
+# The forecast data is NOT part of the build: the browser reads it from the `site-data`
+# branch on GitHub, which a scheduled workflow refreshes every 6 hours. So the site only
+# needs a new deploy when the website code changes.
+
+[build]
+  base = "web"
+  command = "npm run build"
+  publish = "out"
+  # Skip the build (and save Netlify credits) when nothing in web/ changed,
+  # e.g. after a Python-only commit
+  ignore = "git diff --quiet $CACHED_COMMIT_REF $COMMIT_REF -- ."
+
+[build.environment]
+  NODE_VERSION = "22"
+  NEXT_PUBLIC_DATA_URL = "https://raw.githubusercontent.com/boraozisik/spotcast/site-data"
+
+# Security headers. The site has no backend, but these still stop other sites from framing
+# it, block content-type tricks, and only allow data from this site and the data branch.
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options = "DENY"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    Permissions-Policy = "camera=(), microphone=(), geolocation=()"
+    Content-Security-Policy = "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://raw.githubusercontent.com; frame-ancestors 'none'; base-uri 'self'; form-action 'none'"

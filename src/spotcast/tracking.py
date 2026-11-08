@@ -11,7 +11,6 @@ mlartifacts/ (saved files). Both are git-ignored.
 """
 
 import os
-import subprocess
 from collections.abc import Iterator
 from contextlib import contextmanager
 
@@ -21,6 +20,7 @@ os.environ.setdefault("MLFLOW_DISABLE_AGENT_HINT", "1")
 import mlflow  # noqa: E402  (must come after the line above)
 
 from spotcast.config import PROJECT_ROOT  # noqa: E402
+from spotcast.versioning import code_version  # noqa: E402
 
 DEFAULT_TRACKING_URI = f"sqlite:///{PROJECT_ROOT / 'mlflow.db'}"
 ARTIFACTS_DIR = PROJECT_ROOT / "mlartifacts"
@@ -29,27 +29,6 @@ ARTIFACTS_DIR = PROJECT_ROOT / "mlartifacts"
 def tracking_uri() -> str:
     """Local SQLite by default; MLFLOW_TRACKING_URI can point to a shared server instead."""
     return os.environ.get("MLFLOW_TRACKING_URI", DEFAULT_TRACKING_URI)
-
-
-def _git(*args: str) -> str | None:
-    try:
-        result = subprocess.run(
-            ["git", *args], cwd=PROJECT_ROOT, capture_output=True, text=True, check=True
-        )
-    except (OSError, subprocess.CalledProcessError):
-        return None
-    return result.stdout.strip()
-
-
-def code_version() -> dict[str, str]:
-    """Which code produced a result. 'dirty' means there were uncommitted changes, so the
-    commit alone can't reproduce it."""
-    commit = _git("rev-parse", "--short", "HEAD")
-    changes = _git("status", "--porcelain")
-    return {
-        "git_commit": commit or "unknown",
-        "git_dirty": "unknown" if changes is None else str(bool(changes)).lower(),
-    }
 
 
 def use_experiment(name: str) -> None:

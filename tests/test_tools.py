@@ -155,3 +155,9 @@ def test_beginner_is_understood_but_not_supported_yet():
     assert (
         "Invalid arguments" in result["error"]
     )  # mapped to "beginner", which has no profile
+
+
+@pytest.mark.parametrize("value", ["null", "None", "", None])
+def test_search_knowledge_treats_null_text_as_no_spot(value):
+    args = tools.SearchKnowledgeArgs(question="offshore", spot=value)
+    assert args.spot is None

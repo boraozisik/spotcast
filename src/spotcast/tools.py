@@ -212,29 +212,50 @@ class CheckConditionsArgs(ProfileArgs):
 def check_conditions(args: CheckConditionsArgs) -> dict:
     profile = _profile(args.sport, args.level)
     _check_day(args.day)
-
     forecast = fetch_conditions(args.latitude, args.longitude)
-    hours = forecast[forecast["time"].dt.date == args.day].copy()
+    return assess_day(
+        forecast,
+        args.day,
+        args.latitude,
+        args.longitude,
+        profile,
+        _bundle(profile.sport, profile.level),
+        now(),
+    )
+
+
+def assess_day(
+    forecast: pd.DataFrame,
+    day: date,
+    latitude: float,
+    longitude: float,
+    profile: ActivityProfile,
+    bundle: dict,
+    current_time: datetime,
+) -> dict:
+    """One day at one place, from an already fetched forecast. No network: the batch job
+    fetches a place once and assesses all 7 days with this."""
+    hours = forecast[forecast["time"].dt.date == day].copy()
     hours.insert(0, "spot", "requested place")  # find_windows groups hours by spot
     has_waves = hours["wave_height"].notna()
 
     # The model needs wave height. Without it we report the wind but give no verdict.
     hours["prediction"] = "unknown"
     if has_waves.any():
-        known = predict_conditions(
-            _bundle(profile.sport, profile.level), hours[has_waves]
-        )
+        known = predict_conditions(bundle, hours[has_waves])
         hours.loc[has_waves, "prediction"] = known["prediction"]
 
     daylight = hours[hours["is_day"]]
     windows = find_windows(
         hours[hours["prediction"] != "unknown"],
         profile,
-        Preferences(earliest_hour=0, latest_hour=23, min_hours=2, not_before=now()),
+        Preferences(
+            earliest_hour=0, latest_hour=23, min_hours=2, not_before=current_time
+        ),
     )
     best = windows.sort_values("score", ascending=False).head(1)
 
-    spot, km = nearest_spot(args.latitude, args.longitude)
+    spot, km = nearest_spot(latitude, longitude)
     warnings = []
     if not has_waves.all():
         warnings.append(
@@ -244,12 +265,12 @@ def check_conditions(args: CheckConditionsArgs) -> dict:
         warnings.append(
             "SpotCast has no local guide for this place: check local dangers."
         )
-    ahead = days_ahead(args.day, now())
+    ahead = days_ahead(day, current_time)
     if note := lead_time_note(ahead):
         warnings.append(note)
 
     return {
-        "day": turkish_date(pd.Timestamp(args.day)),
+        "day": turkish_date(pd.Timestamp(day)),
         "days_ahead": ahead,
         "sport": profile.sport,
         "level": profile.level,
@@ -338,6 +359,14 @@ class SearchKnowledgeArgs(BaseModel):
     spot: str | None = Field(
         default=None, description="Limit to one known spot's guide"
     )
+
+    @field_validator("spot", mode="before")
+    @classmethod
+    def _no_spot(cls, value: object) -> object:
+        """Small models sometimes send the TEXT "null" instead of leaving the field out."""
+        if isinstance(value, str) and value.strip().lower() in {"", "null", "none"}:
+            return None
+        return value
 
 
 @lru_cache

@@ -33,6 +33,7 @@ spotcast-agent = "spotcast.agent:main"
 spotcast-graph = "spotcast.agent_graph:main"
 spotcast-mcp = "spotcast.mcp_server:main"
 spotcast-eval = "spotcast.evals.run:main"
+spotcast-publish = "spotcast.publish:main"
 
 [build-system]
 requires = ["uv_build>=0.13.5,<0.14.0"]

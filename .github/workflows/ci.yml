@@ -1,9 +1,10 @@
 # Continuous integration: every pull request and every push to main is checked on a
-# fresh GitHub machine. Three independent jobs run in parallel:
+# fresh GitHub machine. Four independent jobs run in parallel:
 #
 #   lint    Ruff rules and formatting
 #   test    the whole pytest suite (fakes only: no database, Ollama or internet needed)
 #   docker  the API image still builds
+#   web     the Next.js site lints and builds
 #
 # The real LLM evaluations (spotcast-eval) are NOT here: they need Ollama and a GPU and take
 # minutes. They run locally, on purpose.
@@ -60,3 +61,20 @@ jobs:
           push: false  # only check that it builds; publishing comes with deployment
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+  web:
+    name: Website builds (Next.js)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci # exactly the versions in package-lock.json
+      - run: npm run lint
+      - run: npm run build
