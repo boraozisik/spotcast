@@ -61,6 +61,16 @@ vision = [
     "pillow>=13.0.0",
 ]
 
+[tool.uv.sources]
+# On Linux (GitHub Actions) PyPI's torch brings ~3 GB of NVIDIA CUDA libraries we never use:
+# take the CPU-only build there. macOS is unaffected (it uses the Apple GPU through MPS).
+torch = [{ index = "pytorch-cpu", marker = "sys_platform == 'linux'" }]
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true  # only packages listed in [tool.uv.sources] come from here
+
 [tool.uv]
 # `uv sync` / `uv run` on this computer install everything, as before.
 # The Docker image uses `--no-default-groups` and gets only the API's dependencies.
