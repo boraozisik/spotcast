@@ -4005,58 +4005,69 @@ wheels = [
 name = "spotcast"
 version = "0.1.0"
 source = { editable = "." }
+default-groups = ["agents", "dev", "train", "vision"]
 dependencies = [
     { name = "fastapi", extra = ["standard"] },
     { name = "joblib" },
-    { name = "langchain-ollama" },
-    { name = "langgraph" },
-    { name = "mcp", extra = ["cli"] },
-    { name = "mlflow" },
     { name = "pandas" },
     { name = "pgvector" },
-    { name = "pillow" },
     { name = "psycopg", extra = ["binary"] },
-    { name = "pyarrow" },
     { name = "python-dotenv" },
     { name = "requests" },
     { name = "scikit-learn" },
     { name = "sqlalchemy" },
-    { name = "torch" },
-    { name = "xgboost" },
 ]
 
 [package.dev-dependencies]
+agents = [
+    { name = "langchain-ollama" },
+    { name = "langgraph" },
+    { name = "mcp", extra = ["cli"] },
+]
 dev = [
     { name = "pytest" },
     { name = "ruff" },
+]
+train = [
+    { name = "mlflow" },
+    { name = "pyarrow" },
+    { name = "torch" },
+    { name = "xgboost" },
+]
+vision = [
+    { name = "pillow" },
 ]
 
 [package.metadata]
 requires-dist = [
     { name = "fastapi", extras = ["standard"], specifier = ">=0.162.0" },
     { name = "joblib", specifier = ">=1.6.0" },
-    { name = "langchain-ollama", specifier = ">=1.1.0" },
-    { name = "langgraph", specifier = ">=1.2.20" },
-    { name = "mcp", extras = ["cli"], specifier = ">=2.3.0" },
-    { name = "mlflow", specifier = ">=3.18.0" },
     { name = "pandas", specifier = ">=3.1.0" },
     { name = "pgvector", specifier = ">=0.5.1" },
-    { name = "pillow", specifier = ">=13.0.0" },
     { name = "psycopg", extras = ["binary"], specifier = ">=3.3.6" },
-    { name = "pyarrow", specifier = ">=26.0.0" },
     { name = "python-dotenv", specifier = ">=1.2.4" },
     { name = "requests", specifier = ">=2.34.2" },
     { name = "scikit-learn", specifier = ">=1.9.1" },
     { name = "sqlalchemy", specifier = ">=2.1.6" },
-    { name = "torch", specifier = ">=2.15.0" },
-    { name = "xgboost", specifier = ">=3.4.1" },
 ]
 
 [package.metadata.requires-dev]
+agents = [
+    { name = "langchain-ollama", specifier = ">=1.1.0" },
+    { name = "langgraph", specifier = ">=1.2.20" },
+    { name = "mcp", extras = ["cli"], specifier = ">=2.3.0" },
+]
 dev = [
     { name = "pytest", specifier = ">=9.2.0" },
     { name = "ruff", specifier = ">=0.17.4" },
 ]
+train = [
+    { name = "mlflow", specifier = ">=3.18.0" },
+    { name = "pyarrow", specifier = ">=26.0.0" },
+    { name = "torch", specifier = ">=2.15.0" },
+    { name = "xgboost", specifier = ">=3.4.1" },
+]
+vision = [{ name = "pillow", specifier = ">=13.0.0" }]
 
 [[package]]
 name = "sqlalchemy"

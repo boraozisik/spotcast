@@ -7,24 +7,17 @@ authors = [
     { name = "Bora", email = "ozisikbora@gmail.com" }
 ]
 requires-python = ">=3.12"
+# What the API needs at runtime. This is all that goes into the Docker image.
 dependencies = [
     "fastapi[standard]>=0.162.0",
     "joblib>=1.6.0",
-    "langchain-ollama>=1.1.0",
-    "langgraph>=1.2.20",
-    "mcp[cli]>=2.3.0",
-    "mlflow>=3.18.0",
     "pandas>=3.1.0",
     "pgvector>=0.5.1",
-    "pillow>=13.0.0",
     "psycopg[binary]>=3.3.6",
-    "pyarrow>=26.0.0",
     "python-dotenv>=1.2.4",
     "requests>=2.34.2",
     "scikit-learn>=1.9.1",
     "sqlalchemy>=2.1.6",
-    "torch>=2.15.0",
-    "xgboost>=3.4.1",
 ]
 
 [project.scripts]
@@ -50,6 +43,28 @@ dev = [
     "pytest>=9.2.0",
     "ruff>=0.17.4",
 ]
+# Training and experiment tracking (Stages 2-3, MLflow). pyarrow: the Parquet history cache
+train = [
+    "mlflow>=3.18.0",
+    "pyarrow>=26.0.0",
+    "torch>=2.15.0",
+    "xgboost>=3.4.1",
+]
+# Agents and the MCP server (Stage 7)
+agents = [
+    "langchain-ollama>=1.1.0",
+    "langgraph>=1.2.20",
+    "mcp[cli]>=2.3.0",
+]
+# Photos and OCR (Stage 6)
+vision = [
+    "pillow>=13.0.0",
+]
+
+[tool.uv]
+# `uv sync` / `uv run` on this computer install everything, as before.
+# The Docker image uses `--no-default-groups` and gets only the API's dependencies.
+default-groups = ["dev", "train", "agents", "vision"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
