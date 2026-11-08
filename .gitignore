@@ -13,7 +13,7 @@ wheels/
 CLAUDE.md
 
 # Local data files (fetched from APIs, can be regenerated)
-data/
+/data/
 
 # Secrets (database password etc.)
 .env
@@ -31,3 +31,6 @@ study/
 mlflow.db
 mlartifacts/
 mlruns/
+
+# Batch job output (published to the site-data branch by GitHub Actions)
+site-data/

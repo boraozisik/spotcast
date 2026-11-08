@@ -3,7 +3,7 @@
 import pandas as pd
 import pytest
 
-from spotcast import tracking
+from spotcast import tracking, versioning
 from spotcast.model import classification_scores
 from spotcast.tracking import mlflow
 
@@ -41,8 +41,11 @@ def test_epoch_metrics_keep_their_steps(temp_tracking):
 
 
 def test_code_version_without_git(monkeypatch):
-    monkeypatch.setattr(tracking, "_git", lambda *args: None)
-    assert tracking.code_version() == {"git_commit": "unknown", "git_dirty": "unknown"}
+    monkeypatch.setattr(versioning, "_git", lambda *args: None)
+    assert versioning.code_version() == {
+        "git_commit": "unknown",
+        "git_dirty": "unknown",
+    }
 
 
 @pytest.mark.parametrize(

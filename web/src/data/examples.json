@@ -1,0 +1,90 @@
+{
+  "recorded_at": "2026-11-08 18:30",
+  "model": "qwen3:8b",
+  "examples": [
+    {
+      "topic": "Bilinen spotlar dışındaki bir yer",
+      "question": "Cumartesi Mersin sahilinde rüzgâr sörfü yapmak istiyorum, orta seviyedeyim. Uygun mu?",
+      "steps": [
+        {
+          "tool": "find_location",
+          "arguments": {
+            "name": "Mersin"
+          },
+          "summary": "Mersin (Mersin); Mersin (Akçaabat, Trabzon); Mersin (Çatak İlçesi, Van)"
+        },
+        {
+          "tool": "check_conditions",
+          "arguments": {
+            "day": "2026-11-14",
+            "latitude": 36.81196,
+            "longitude": 34.63886
+          },
+          "summary": "14 Kasım Cumartesi · saatler: bad: 10 · en iyi aralık: yok"
+        }
+      ],
+      "llm_text": "Mersin sahilinde 14 Kasım Cumartesi günü rüzgâr sörfü yapmak için tüm saatler \"uygun değil\" (bad) olarak değerlendirildi. 10 saat boyunca kötü koşullar bekleniyor. SpotCast bu bölgeye özel bir yer kılavuzu bulunmuyor, yerel tehlikeleri kontrol etmeniz önerilir. 6 gün sonrası için tahminler çok değişken olabilir, gitmeden önceki gün yeniden kontrol edin.",
+      "answer": "Mersin sahilinde 14 Kasım Cumartesi günü rüzgâr sörfü yapmak için tüm saatler \"uygun değil\" (bad) olarak değerlendirildi. 10 saat boyunca kötü koşullar bekleniyor. SpotCast bu bölgeye özel bir yer kılavuzu bulunmuyor, yerel tehlikeleri kontrol etmeniz önerilir. 6 gün sonrası için tahminler çok değişken olabilir, gitmeden önceki gün yeniden kontrol edin.\n\n⏳ 6 gün sonrası için tahmin: bu kadar uzak tahminler sık değişir. Gitmeden önceki gün yeniden kontrol et.\n\n⚠️ Tahminler değişebilir. Suya girmeden önce sahilde rüzgârı ve dalgayı kendin kontrol et; emin olmadığında girme.",
+      "seconds": 22.0
+    },
+    {
+      "topic": "Öneri",
+      "question": "Bu hafta sonu rüzgâr sörfü için nereye gideyim? Orta seviyedeyim.",
+      "steps": [
+        {
+          "tool": "recommend_spots",
+          "arguments": {
+            "day": "2026-11-14",
+            "weekend_only": true
+          },
+          "summary": "Alaçatı 14 Kasım Cumartesi 09:00-18:00 (uygun 0, sınırda 10) | Kuşadası Pamucak 14 Kasım Cumartesi 12:00-17:00 (uygun 0, sınırda 6)"
+        }
+      ],
+      "llm_text": "Bu hafta sonu rüzgâr sörfü için Alaçatı ve Kuşadası Pamucak önerilir. Alaçatı'da 14 Kasım Cumartesi günü 09:00-18:00 saatleri arasında 10 saat sınırda koşullar beklenirken, Kuşadası Pamucak'ta 12:00-17:00 saatleri arasında 6 saat sınırda koşullar tahmin edilmektedir. Her iki yerde de 6 gün öncesine ait tahminler olduğu için, gitmeden önceki gün yeniden kontrol etmeniz önerilir.",
+      "answer": "Bu hafta sonu rüzgâr sörfü için Alaçatı ve Kuşadası Pamucak önerilir. Alaçatı'da 14 Kasım Cumartesi günü 09:00-18:00 saatleri arasında 10 saat sınırda koşullar beklenirken, Kuşadası Pamucak'ta 12:00-17:00 saatleri arasında 6 saat sınırda koşullar tahmin edilmektedir. Her iki yerde de 6 gün öncesine ait tahminler olduğu için, gitmeden önceki gün yeniden kontrol etmeniz önerilir.\n\n⏳ 6 gün sonrası için tahmin: bu kadar uzak tahminler sık değişir. Gitmeden önceki gün yeniden kontrol et.\n\n⚠️ Tahminler değişebilir. Suya girmeden önce sahilde rüzgârı ve dalgayı kendin kontrol et; emin olmadığında girme.",
+      "seconds": 10.0
+    },
+    {
+      "topic": "Desteklenmeyen seviye (kod cevaplar)",
+      "question": "Yeni başlıyorum, hafta sonu Alaçatı'ya gitsem olur mu?",
+      "steps": [],
+      "llm_text": "",
+      "answer": "SpotCast şu an sadece orta seviye rüzgâr sörfü için değerlendirme yapabiliyor. Yeni başlayan seviye rüzgâr sörfü için henüz öneri veremiyorum. Başka bir seviyenin sonuçları sana uygun olmayabilir, o yüzden onları kullanmanı önermiyorum.",
+      "seconds": 1.0
+    },
+    {
+      "topic": "Güvenlik bilgisi (RAG)",
+      "question": "Dip akıntısına yakalanırsam ne yapmalıyım?",
+      "steps": [
+        {
+          "tool": "search_knowledge",
+          "arguments": {
+            "question": "Dip akıntısına yakalanırsam ne yapmalıyım",
+            "spot": "Alaçatı"
+          },
+          "summary": "Dip Akıntıları → Dip akıntısına yakalanırsan ne yapmalı | Dip Akıntıları → Dip akıntısı: genel güvenlik kuralları | Dip Akıntıları → Dip akıntısı nedir?"
+        }
+      ],
+      "llm_text": "Dip akıntısına yakalanırsan, akıntıyla mücadele etme. Önce akıntının dışına çık, sonra kıyıya doğru yüz. Kaçamıyorsan sırtüstü suyun üstünde kal ya da olduğun yerde suyun üstünde dur. Yardıma ihtiyacın olursa seslen ya da el sallayarak yardım iste. Yüzme bilmeden denize girme ve asla yalnız yüzme. Emin değilsen denize girme.",
+      "answer": "Dip akıntısına yakalanırsan, akıntıyla mücadele etme. Önce akıntının dışına çık, sonra kıyıya doğru yüz. Kaçamıyorsan sırtüstü suyun üstünde kal ya da olduğun yerde suyun üstünde dur. Yardıma ihtiyacın olursa seslen ya da el sallayarak yardım iste. Yüzme bilmeden denize girme ve asla yalnız yüzme. Emin değilsen denize girme.\n\n📖 Kaynak (Dip Akıntıları → Dip akıntısına yakalanırsan ne yapmalı): «Akıntıyla mücadele etme. Önce akıntının dışına çık, sonra kıyıya doğru yüz. Kaçamıyorsan sırtüstü suyun üstünde kal ya da olduğun yerde suyun üstünde dur. Yardıma ihtiyacın olursa seslen ya da el sallayarak yardım iste.»",
+      "seconds": 9.7
+    },
+    {
+      "topic": "Güvenlik bilgisi (RAG)",
+      "question": "Rüzgâr karadan denize doğru eserse rüzgâr sörfü yapmak riskli mi?",
+      "steps": [
+        {
+          "tool": "search_knowledge",
+          "arguments": {
+            "question": "Rüzgâr karadan denize doğru eserse rüzgâr sörfü yapmak riskli mi",
+            "spot": "null"
+          },
+          "summary": "Rüzgâr sörfü güvenlik kuralları → Rüzgâr yönü: karadan denize esen rüzgâr (offshore) | Rüzgâr Sörfü Alanı Kuralları → Rüzgâr sörfü alanı kuralları: rüzgâr yönü | Rüzgâr sörfü güvenlik kuralları → Seviyeni bilmek"
+        }
+      ],
+      "llm_text": "Karadan denize doğru esen rüzgâr (offshore), rüzgâr sörfü yapmak için en tehlikeli rüzgâr yönüdür. Kıyıda rüzgâr zayıf ve yüzey sakin görünür, ancak açıldıkça rüzgâr güçlenir ve düşer ya da yorulursanız rüzgâr size açığa sürükler. Bu nedenle, rüzgâr karadan denize doğru esiyorsa suya girmemek en doğru karardır.",
+      "answer": "Karadan denize doğru esen rüzgâr (offshore), rüzgâr sörfü yapmak için en tehlikeli rüzgâr yönüdür. Kıyıda rüzgâr zayıf ve yüzey sakin görünür, ancak açıldıkça rüzgâr güçlenir ve düşer ya da yorulursanız rüzgâr size açığa sürükler. Bu nedenle, rüzgâr karadan denize doğru esiyorsa suya girmemek en doğru karardır.\n\n📖 Kaynak (Rüzgâr sörfü güvenlik kuralları → Rüzgâr yönü: karadan denize esen rüzgâr (offshore)): «Karadan denize doğru esen rüzgâr (offshore) en tehlikeli rüzgâr yönüdür. Kıyıda rüzgâr zayıf ve yüzey sakin görünür, ama açıldıkça rüzgâr güçlenir. Düşer ya da yorulursan rüzgâr seni açığa sürükler ve kıyıya geri dönmek zorlaşır. Kıyıya paralel (side-shore) veya hafifçe denizden karaya esen (side-onshore) rüzgâr en güvenli ve en uygun yöndür. Tam denizden karaya esen rüzgârda (onshore) suya çıkmak dalgalar yüzünden zordur ama sürüklenme riski azdır.»",
+      "seconds": 10.5
+    }
+  ]
+}

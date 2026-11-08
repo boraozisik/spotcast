@@ -1,0 +1,62 @@
+# Batch inference for the website: every 6 hours, run SpotCast's model on the latest
+# forecast and publish the results as JSON on the `site-data` branch. The Netlify site
+# reads them from there. No server, no secrets, no cost.
+#
+# Scheduled workflows only run from the default branch (main). Run it by hand from the
+# Actions tab with "Run workflow" (workflow_dispatch).
+
+name: Publish site data
+
+on:
+  schedule:
+    - cron: "17 */6 * * *" # every 6 hours (UTC); :17 avoids the busy top of the hour
+  workflow_dispatch:
+
+# This job pushes the data branch, so it may write repository contents. Nothing else.
+permissions:
+  contents: write
+
+# Never run two publishes at the same time; let a running one finish
+concurrency:
+  group: publish-site-data
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+
+      # Only the runtime dependencies: no torch, mlflow or LangGraph needed here
+      - run: uv sync --locked --no-default-groups
+
+      # The model is retrained only when the code or data range that defines it changes
+      - name: Cache the trained model
+        uses: actions/cache@v4
+        with:
+          path: models
+          key: model-${{ hashFiles('src/spotcast/labels.py', 'src/spotcast/model.py', 'src/spotcast/profiles.py', 'src/spotcast/config.py', 'uv.lock') }}
+
+      - name: Compute the site data
+        run: uv run --no-sync spotcast-publish --out site-data
+        env:
+          TZ: Europe/Istanbul
+
+      # A fresh one-commit branch each time: the branch holds only the latest data,
+      # so it never grows
+      - name: Push to the site-data branch
+        working-directory: site-data
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git init -q -b site-data
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -q -m "Site data $(date -u +%Y-%m-%dT%H:%MZ)"
+          git push -q -f "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" site-data

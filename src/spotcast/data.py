@@ -1,5 +1,6 @@
 """Fetching wind and wave data from Open-Meteo, and caching history as Parquet."""
 
+import time
 from datetime import date
 
 import pandas as pd
@@ -32,12 +33,31 @@ def _fetch_hourly(
         "timezone": TIMEZONE,
     } | extra_params
 
-    response = requests.get(url, params=params, timeout=REQUEST_TIMEOUT_SECONDS)
-    response.raise_for_status()
+    response = _get_with_retries(url, params)
 
     df = pd.DataFrame(response.json()["hourly"])
     df["time"] = pd.to_datetime(df["time"])
     return df
+
+
+RETRIES = 3
+
+
+def _get_with_retries(
+    url: str, params: dict, retries: int = RETRIES
+) -> requests.Response:
+    """A slow or dropped connection is often a one-off: wait a little and try again
+    (1 s, then 2 s). Errors the server returns on purpose (HTTP 400) are not retried."""
+    for attempt in range(retries):
+        try:
+            response = requests.get(url, params=params, timeout=REQUEST_TIMEOUT_SECONDS)
+            response.raise_for_status()
+            return response
+        except (requests.ConnectionError, requests.Timeout):
+            if attempt == retries - 1:
+                raise
+            time.sleep(2**attempt)
+    raise AssertionError("unreachable")
 
 
 def _date_params(start: date | None, end: date | None) -> dict[str, str]:
