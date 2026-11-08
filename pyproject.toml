@@ -13,6 +13,7 @@ dependencies = [
     "langchain-ollama>=1.1.0",
     "langgraph>=1.2.20",
     "mcp[cli]>=2.3.0",
+    "mlflow>=3.18.0",
     "pandas>=3.1.0",
     "pgvector>=0.5.1",
     "pillow>=13.0.0",
@@ -53,7 +54,12 @@ dev = [
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 # A warning today is often an error after the next library update: fail on it now
-filterwarnings = ["error"]
+filterwarnings = [
+    "error",
+    # MLflow's own database code uses an option SQLAlchemy 2.1 deprecated. Not our code and
+    # not fixable here: ignore exactly this warning, nothing else. Remove when MLflow fixes it.
+    "ignore:The ``noload`` loader strategy is deprecated:sqlalchemy.exc.SADeprecationWarning",
+]
 
 [tool.ruff.lint]
 # E/W: style errors, F: real bugs (unused names, undefined variables), I: import order,

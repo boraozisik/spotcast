@@ -1,5 +1,7 @@
 """SpotCast command-line entry point (`uv run spotcast`)."""
 
+from dataclasses import asdict
+
 import pandas as pd
 import requests
 from sqlalchemy.exc import SQLAlchemyError
@@ -25,6 +27,7 @@ from spotcast.recommend import Preferences, recommend
 
 TEST_YEAR = 2025
 SPORT, LEVEL = "windsurf", "intermediate"
+EXPERIMENT = "suitability-classifier"  # MLflow groups comparable runs under one name
 
 
 def main() -> None:
@@ -60,19 +63,41 @@ def main() -> None:
     print(pd.crosstab(labeled["spot"], labeled["label"], margins=True))
     print("*********")
 
+    # Imported here, not at the top: every `import spotcast...` runs this file, and the
+    # API and tests shouldn't have to load MLflow
+    from spotcast.tracking import mlflow, run
+
     X_train, X_test, y_train, y_test = split_by_year(labeled, TEST_YEAR)
     print(f"Train rows: {len(X_train)}, test rows ({TEST_YEAR}): {len(X_test)}\n")
+    data = {
+        "history": f"{HISTORY_START}..{HISTORY_END}",
+        "test_year": TEST_YEAR,
+        "train_rows": len(X_train),
+        "test_rows": len(X_test),
+    }
+    thresholds = {f"profile.{k}": v for k, v in asdict(profile).items()}
+    profile_tag = f"{profile.sport}_{profile.level}"
 
-    evaluate(
-        "Baseline (always most common)",
-        train_baseline(X_train, y_train),
-        X_test,
-        y_test,
-    )
+    with run(EXPERIMENT, "baseline", profile=profile_tag):
+        mlflow.log_params({"model": "most_frequent", **data, **thresholds})
+        baseline = train_baseline(X_train, y_train)
+        mlflow.log_metrics(
+            evaluate("Baseline (always most common)", baseline, X_test, y_test)
+        )
 
-    tree = train_tree(X_train, y_train)
-    evaluate("Decision tree", tree, X_test, y_test)
-    show_tree(tree)
+    with run(EXPERIMENT, "decision-tree", profile=profile_tag):
+        tree = train_tree(X_train, y_train)
+        mlflow.log_params(
+            {
+                "model": "decision_tree",
+                "max_depth": tree.max_depth,
+                "features": ",".join(FEATURES),
+                **data,
+                **thresholds,
+            }
+        )
+        mlflow.log_metrics(evaluate("Decision tree", tree, X_test, y_test))
+        mlflow.log_text(show_tree(tree), "tree_rules.txt")
     print("*********")
 
     # Conditions the model never saw in training (2024 max wind was 27.7 kn)
@@ -86,9 +111,35 @@ def main() -> None:
 
     # Evaluation is done, so the final model learns from all years we have
     all_years = sorted(labeled["time"].dt.year.unique().tolist())
-    final_tree = train_tree(labeled[FEATURES], labeled["label"])
-    path = save_model(final_tree, profile, train_years=all_years)
-    print(f"Saved model trained on {all_years} to {path.name}")
+    with run(EXPERIMENT, "final-model", profile=profile_tag):
+        final_tree = train_tree(labeled[FEATURES], labeled["label"])
+        path = save_model(final_tree, profile, train_years=all_years)
+        mlflow.log_params(
+            {
+                "model": "decision_tree",
+                "max_depth": final_tree.max_depth,
+                "train_years": ",".join(map(str, all_years)),
+                "train_rows": len(labeled),
+                **thresholds,
+            }
+        )
+        # The model registry keeps every version of the model we serve
+        version = mlflow.sklearn.log_model(
+            final_tree,
+            name="model",
+            registered_model_name=profile_tag,
+            # Directions are whole degrees, but a float schema also accepts missing values
+            input_example=labeled[FEATURES]
+            .head(3)
+            .astype({"wind_direction_10m": float}),
+            # MLflow saves with skops, which only loads types it is told to trust (unlike
+            # pickle, which can run any code). This one is scikit-learn's own tree class.
+            skops_trusted_types=["sklearn.tree._tree.Tree"],
+        ).registered_model_version
+        mlflow.log_artifact(str(path), artifact_path="bundle")  # what the API loads
+    print(
+        f"Saved model trained on {all_years} to {path.name} (registry: {profile_tag} v{version})"
+    )
 
     # Use the saved model the way a real app would: load it, then predict the forecast
     bundle = load_model(profile)
