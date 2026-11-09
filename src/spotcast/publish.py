@@ -82,7 +82,11 @@ def ensure_model(profile: ActivityProfile, retrain: bool = False) -> dict[str, A
     years = sorted(labeled["time"].dt.year.unique().tolist())
     X = labeled[FEATURES]
     save_model(
-        train_tree(X, labeled["label"]), profile, years, ranges=feature_ranges(X)
+        train_tree(X, labeled["label"]),
+        profile,
+        years,
+        ranges=feature_ranges(X),
+        train_end=HISTORY_END,
     )
     return load_model(profile)
 

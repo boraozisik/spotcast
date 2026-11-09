@@ -119,6 +119,7 @@ def main() -> None:
             profile,
             train_years=all_years,
             ranges=feature_ranges(labeled[FEATURES]),
+            train_end=HISTORY_END,
         )
         mlflow.log_params(
             {

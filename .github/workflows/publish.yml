@@ -35,12 +35,23 @@ jobs:
       # Only the runtime dependencies: no torch, mlflow or LangGraph needed here
       - run: uv sync --locked --no-default-groups
 
-      # The model is retrained only when the code or data range that defines it changes
+      # Fallback while no model has been approved yet: train once, then reuse the cache
       - name: Cache the trained model
         uses: actions/cache@v4
         with:
           path: models
           key: model-${{ hashFiles('src/spotcast/labels.py', 'src/spotcast/model.py', 'src/spotcast/profiles.py', 'src/spotcast/config.py', 'uv.lock') }}
+
+      # The approved champion (see retrain.yml) always wins over the cached fallback
+      - name: Use the approved model from the models branch
+        run: |
+          mkdir -p models
+          if git fetch -q --depth 1 origin models; then
+            git archive FETCH_HEAD | tar -x -C models
+            echo "Using approved model:" && cat models/model_card.json
+          else
+            echo "No approved model yet: using the cached or freshly trained one."
+          fi
 
       - name: Compute the site data
         run: uv run --no-sync spotcast-publish --out site-data

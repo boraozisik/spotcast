@@ -1,5 +1,6 @@
 """Training, evaluating, saving and using the suitability classifier."""
 
+from datetime import date
 from pathlib import Path
 from typing import Any
 
@@ -130,6 +131,7 @@ def save_model(
     train_years: list[int],
     models_dir: Path = MODELS_DIR,
     ranges: dict[str, list[float]] | None = None,
+    train_end: date | None = None,
 ) -> Path:
     """Save the model together with what is needed to use it correctly later."""
     bundle = {
@@ -137,6 +139,8 @@ def save_model(
         "features": FEATURES,  # the exact columns, in the exact order, it was trained on
         "profile": profile,
         "train_years": train_years,
+        # The last day of training data: retraining tests a new model on data after this
+        "train_end": train_end.isoformat() if train_end else None,
         "feature_ranges": ranges or {},  # what the model has seen (for monitoring)
         "sklearn_version": sklearn.__version__,
     }
