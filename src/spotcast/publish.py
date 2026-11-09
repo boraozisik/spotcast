@@ -30,10 +30,18 @@ from spotcast.data import fetch_all_spots, fetch_conditions
 from spotcast.labels import add_labels
 from spotcast.model import (
     FEATURES,
+    feature_ranges,
     load_model,
     predict_conditions,
     save_model,
     train_tree,
+)
+from spotcast.monitoring import (
+    DataQualityError,
+    notices,
+    problems,
+    quality_report,
+    write_run_summary,
 )
 from spotcast.places import PLACES
 from spotcast.profiles import ActivityProfile, get_profile
@@ -72,7 +80,10 @@ def ensure_model(profile: ActivityProfile, retrain: bool = False) -> dict[str, A
     history = fetch_all_spots(SPOTS, HISTORY_START, HISTORY_END)
     labeled = add_labels(history, profile)
     years = sorted(labeled["time"].dt.year.unique().tolist())
-    save_model(train_tree(labeled[FEATURES], labeled["label"]), profile, years)
+    X = labeled[FEATURES]
+    save_model(
+        train_tree(X, labeled["label"]), profile, years, ranges=feature_ranges(X)
+    )
     return load_model(profile)
 
 
@@ -250,6 +261,7 @@ def publish(out: Path, retrain: bool = False) -> None:
         )  # fmt: skip
     print(f"Fetching and assessing {len(PLACES)} places...")
     skipped = []
+    fetched = [spot_forecast]  # every hourly row, for the quality report
     for place in PLACES:
         try:
             forecast = fetch_conditions(place.latitude, place.longitude)
@@ -258,15 +270,23 @@ def publish(out: Path, retrain: bool = False) -> None:
             print(f"  skipped {place.name}: {error}")
             skipped.append(place.name)
             continue
+        fetched.append(forecast)
         places.append(
             build_place(place.name, place.region, place.latitude, place.longitude,
                         forecast, profile, bundle, now)
         )  # fmt: skip
 
+    # Check the data before anything is written: bad data must never replace good data
+    report = quality_report(pd.concat(fetched), bundle, len(PLACES), skipped)
+    write_run_summary(report)
+    for notice in notices(report):
+        print(f"  warning: {notice}")
+    if stops := problems(report):
+        raise DataQualityError("Not published: " + " ".join(stops))
+
     out.mkdir(parents=True, exist_ok=True)
     write_json(
-        out / "meta.json",
-        {**build_meta(profile, bundle, now), "skipped_places": skipped},
+        out / "meta.json", {**build_meta(profile, bundle, now), "quality": report}
     )
     write_json(
         out / "recommendations.json", build_recommendations(predicted, profile, now)

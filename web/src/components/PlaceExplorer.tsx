@@ -4,6 +4,7 @@ import { useSearchParams } from "next/navigation";
 import { useMemo, useState } from "react";
 
 import { HourlyBars } from "@/components/HourlyBars";
+import { StaleNotice } from "@/components/StaleNotice";
 import { Caution, Card, LabelBadge, LoadError, Loading, Notes } from "@/components/ui";
 import { useSiteData } from "@/lib/data";
 import { knots, metres } from "@/lib/format";
@@ -50,6 +51,7 @@ export function PlaceExplorer() {
 
   return (
     <div className="space-y-6">
+      <StaleNotice generatedAt={meta.data.generated_at} />
       <Card className="grid gap-4 sm:grid-cols-[1fr_2fr]">
         <label className="text-sm">
           <span className="font-medium text-slate-700">{t.place.placeLabel}</span>

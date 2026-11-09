@@ -4,6 +4,7 @@ import Link from "next/link";
 
 import { BestWindows } from "@/components/BestWindows";
 import { SpotForecast } from "@/components/SpotForecast";
+import { StaleNotice } from "@/components/StaleNotice";
 import { Caution, LoadError, Loading } from "@/components/ui";
 import { useSiteData } from "@/lib/data";
 import { formatDateTime, useT } from "@/lib/i18n";
@@ -47,6 +48,7 @@ export default function Home() {
         <Loading />
       ) : (
         <>
+          <StaleNotice generatedAt={meta.data.generated_at} />
           <BestWindows recommendations={recommendations.data} />
 
           <section>
