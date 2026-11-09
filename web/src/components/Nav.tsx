@@ -7,6 +7,7 @@ import { useT } from "@/lib/i18n";
 import { GITHUB_URL } from "@/lib/site";
 
 import { LanguageSwitch } from "./LanguageSwitch";
+import { Logo } from "./Logo";
 
 export function SiteHeader() {
   const { t } = useT();
@@ -24,9 +25,7 @@ export function SiteHeader() {
       <div className="mx-auto flex max-w-6xl flex-col gap-3 px-4 py-3 lg:flex-row lg:items-center lg:justify-between">
         <div className="flex items-center justify-between gap-3">
           <Link href="/" className="flex items-center gap-2 font-semibold text-slate-900">
-            <span aria-hidden className="text-2xl">
-              🏄
-            </span>
+            <Logo />
             <span>
               SpotCast <span className="font-normal text-slate-500">· {t.brand}</span>
             </span>

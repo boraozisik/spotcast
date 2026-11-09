@@ -1,18 +1,18 @@
 # SpotCast
 
 **Is this spot right for my level, at this hour?**
-SpotCast is an AI-powered windsurf forecasting system for the Turkish coast. It turns raw wind
+SpotcastAI is an AI-powered windsurf forecasting system for the Turkish coast. It turns raw wind
 and wave forecasts into clear, hour-by-hour verdicts and the best time windows to go, and
 answers free-form questions through a tool-calling AI assistant.
 
-[![CI](https://github.com/boraozisik/spotcast/actions/workflows/ci.yml/badge.svg)](https://github.com/boraozisik/spotcast/actions/workflows/ci.yml)
-[![Publish site data](https://github.com/boraozisik/spotcast/actions/workflows/publish.yml/badge.svg)](https://github.com/boraozisik/spotcast/actions/workflows/publish.yml)
+[![CI](https://github.com/boraozisik/spotcast-ai/actions/workflows/ci.yml/badge.svg)](https://github.com/boraozisik/spotcast-ai/actions/workflows/ci.yml)
+[![Publish site data](https://github.com/boraozisik/spotcast-ai/actions/workflows/publish.yml/badge.svg)](https://github.com/boraozisik/spotcast-ai/actions/workflows/publish.yml)
 
 **Live:** [spotcastai.netlify.app](https://spotcastai.netlify.app/) (English / Turkish)
 
 ## Features
 
-- **Hour-by-hour verdicts.** Every forecast hour is labelled *good*, *marginal* or *not suitable*
+- **Hour-by-hour verdicts.** Every forecast hour is labelled _good_, _marginal_ or _not suitable_
   by a machine learning model, for a given sport and skill level.
 - **Hard safety guardrails.** Safety rules sit on top of the model and can never be overridden:
   a storm is never "good", whatever the model predicts.
@@ -60,13 +60,13 @@ model; recorded assistant conversations are shown on the site.
 
 **Retrieval** (18 questions with known answer sections, top 3):
 
-| Change | hit@1 | hit@3 | MRR |
-|---|---|---|---|
-| Baseline (vector search) | 72% | 78% | 0.74 |
-| Content restructured (mixed sections split by topic) | 83% | 94% | 0.87 |
-| Hybrid search, first version | 78% | 94% | 0.85 ↓ |
-| Hybrid + common-word filter (IDF-like) | 83% | 94% | 0.88 |
-| + Query expansion (knots → Beaufort, in code) | **89%** | **100%** | **0.94** |
+| Change                                               | hit@1   | hit@3    | MRR      |
+| ---------------------------------------------------- | ------- | -------- | -------- |
+| Baseline (vector search)                             | 72%     | 78%      | 0.74     |
+| Content restructured (mixed sections split by topic) | 83%     | 94%      | 0.87     |
+| Hybrid search, first version                         | 78%     | 94%      | 0.85 ↓   |
+| Hybrid + common-word filter (IDF-like)               | 83%     | 94%      | 0.88     |
+| + Query expansion (knots → Beaufort, in code)        | **89%** | **100%** | **0.94** |
 
 Restructuring the content had the largest impact. The first hybrid version reduced quality
 because PostgreSQL's ranking ignores how common a word is; filtering common words fixed it.
@@ -101,21 +101,21 @@ Docker · GitHub Actions · Next.js · TypeScript · Tailwind CSS · Netlify
 
 ## Repository layout
 
-| Path | Contents |
-|---|---|
-| `src/spotcast/data.py`, `config.py`, `places.py` | Open-Meteo data, spots and coastal places |
-| `src/spotcast/profiles.py`, `labels.py`, `model.py` | Activity profiles, labels, classifier, guardrail |
-| `src/spotcast/forecasting.py`, `wind_model.py`, `lstm_model.py` | 48-hour wind forecasting |
-| `src/spotcast/recommend.py`, `api.py` | Optimizer and FastAPI service |
-| `src/spotcast/llm.py`, `explain.py`, `rag.py` | LLM client, explanations, hybrid retrieval |
-| `src/spotcast/vision.py`, `ocr.py` | Sea-state estimation from photos, OCR of signs |
-| `src/spotcast/tools.py`, `agent.py`, `agent_graph.py`, `mcp_server.py` | Tools, agents, MCP server |
-| `src/spotcast/evals/`, `evals/` | Evaluation code and test sets |
-| `src/spotcast/tracking.py` | MLflow experiment tracking |
-| `src/spotcast/publish.py` | Batch job behind the website |
-| `knowledge/` | Spot guides, Beaufort scale, safety rules (RAG sources) |
-| `web/` | Next.js website (EN/TR) |
-| `tests/` | 200+ tests (pytest, no network or LLM needed) |
+| Path                                                                   | Contents                                                |
+| ---------------------------------------------------------------------- | ------------------------------------------------------- |
+| `src/spotcast/data.py`, `config.py`, `places.py`                       | Open-Meteo data, spots and coastal places               |
+| `src/spotcast/profiles.py`, `labels.py`, `model.py`                    | Activity profiles, labels, classifier, guardrail        |
+| `src/spotcast/forecasting.py`, `wind_model.py`, `lstm_model.py`        | 48-hour wind forecasting                                |
+| `src/spotcast/recommend.py`, `api.py`                                  | Optimizer and FastAPI service                           |
+| `src/spotcast/llm.py`, `explain.py`, `rag.py`                          | LLM client, explanations, hybrid retrieval              |
+| `src/spotcast/vision.py`, `ocr.py`                                     | Sea-state estimation from photos, OCR of signs          |
+| `src/spotcast/tools.py`, `agent.py`, `agent_graph.py`, `mcp_server.py` | Tools, agents, MCP server                               |
+| `src/spotcast/evals/`, `evals/`                                        | Evaluation code and test sets                           |
+| `src/spotcast/tracking.py`                                             | MLflow experiment tracking                              |
+| `src/spotcast/publish.py`                                              | Batch job behind the website                            |
+| `knowledge/`                                                           | Spot guides, Beaufort scale, safety rules (RAG sources) |
+| `web/`                                                                 | Next.js website (EN/TR)                                 |
+| `tests/`                                                               | 200+ tests (pytest, no network or LLM needed)           |
 
 ## Running locally
 
