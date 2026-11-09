@@ -1,34 +1,36 @@
 # SpotCast
 
-**Is this spot good for windsurfing, at this hour, for my level?**
-An end-to-end AI system that answers that question for the Turkish coast, from raw weather
-data to a tool-calling LLM agent, with every part measured.
+**Is this spot right for my level, at this hour?**
+SpotCast is an AI-powered windsurf forecasting system for the Turkish coast. It turns raw wind
+and wave forecasts into clear, hour-by-hour verdicts and the best time windows to go, and
+answers free-form questions through a tool-calling AI assistant.
 
 [![CI](https://github.com/boraozisik/spotcast/actions/workflows/ci.yml/badge.svg)](https://github.com/boraozisik/spotcast/actions/workflows/ci.yml)
 [![Publish site data](https://github.com/boraozisik/spotcast/actions/workflows/publish.yml/badge.svg)](https://github.com/boraozisik/spotcast/actions/workflows/publish.yml)
 
-**Live demo:** _Netlify link coming soon_ (Turkish UI)
+**Live:** [spotcastai.netlify.app](https://spotcastai.netlify.app/) (English / Turkish)
 
-I built SpotCast step by step to learn AI engineering end to end: data, classical ML,
-deep learning, LLMs, RAG, agents, evaluation and MLOps. Windsurfing at intermediate level is
-the first vertical slice; sports and levels are configuration (an "activity profile"), not code.
+## Features
 
-## What it does
+- **Hour-by-hour verdicts.** Every forecast hour is labelled *good*, *marginal* or *not suitable*
+  by a machine learning model, for a given sport and skill level.
+- **Hard safety guardrails.** Safety rules sit on top of the model and can never be overridden:
+  a storm is never "good", whatever the model predicts.
+- **Best time windows.** An optimizer picks the best spot and session window under the user's
+  constraints (hours, weekend, minimum session length).
+- **Any point on the coast.** Places outside the curated spots are assessed with the same model and
+  rules, with explicit warnings when there is no wave data or no local guide.
+- **Explanations with sources.** A locally hosted LLM explains each recommendation in Turkish,
+  citing spot guides and safety documents retrieved from a vector database.
+- **AI assistant and MCP server.** A tool-calling agent answers questions such as "Is Saturday in
+  Mersin OK for windsurfing?". The same tools are available to other AI clients through MCP.
+- **Uncertainty notes.** Forecasts five or more days ahead and points without wave data are flagged
+  automatically.
+- **Continuously evaluated.** Retrieval quality, agent answers and an LLM judge are measured on
+  fixed test sets.
 
-- **Forecast → verdict:** pulls wind and wave forecasts from Open-Meteo and labels every hour
-  as good / marginal / bad with a scikit-learn model.
-- **Guardrail:** hard safety rules sit on top of the model. The model once called a 40-knot storm
-  "good" (it had never seen one); the guardrail makes that impossible.
-- **Recommendations:** an optimizer picks the best spot and time window under the user's
-  constraints (hours, weekend, minimum length).
-- **Any place on the coast:** "Saturday in Mersin, is it OK?" works for places that are not
-  curated spots, with clear warnings when there is no wave data or no local guide.
-- **Explanations with sources (RAG):** a local LLM explains the recommendation in Turkish,
-  citing spot guides and safety documents stored in pgvector.
-- **Agent + MCP:** a tool-calling agent (hand-written loop and LangGraph) answers free-form
-  questions; the same tools are exposed to other AI clients through an MCP server.
-- **Evaluation:** retrieval quality, agent answers and an LLM judge are measured on fixed test
-  sets. The measurements found real bugs.
+Windsurfing at intermediate level is the first supported profile. Sports and levels are defined
+as configuration ("activity profiles"), so new ones need no code changes.
 
 ## Architecture
 
@@ -39,7 +41,7 @@ flowchart LR
     DATA --> FC[Wind forecasting<br/>XGBoost / LSTM]
     CLS --> REC[Recommender<br/>optimization]
     REC --> API[FastAPI]
-    KB[Knowledge base<br/>Markdown + OCR] --> RAG[pgvector +<br/>Turkish full-text<br/>hybrid search]
+    KB[Knowledge base<br/>guides + OCR'd signs] --> RAG[pgvector +<br/>Turkish full-text<br/>hybrid search]
     RAG --> LLM[Local LLM<br/>Ollama qwen3:8b]
     REC --> LLM
     LLM --> AG[Agent<br/>tool calling, LangGraph]
@@ -48,48 +50,48 @@ flowchart LR
     PUB --> SITE[Next.js on Netlify<br/>static, no backend]
 ```
 
-**The public site has no backend.** A scheduled GitHub Actions job runs the same model,
-guardrail and recommender every 6 hours and publishes JSON to the `site-data` branch; the
-static Next.js site reads it in the browser. Nothing is exposed that could be abused, nothing
-sleeps, nothing costs money (batch inference). The LLM parts run locally: free hosting cannot
-run an 8B model at a usable speed, so the site shows real recorded agent conversations.
+**The public website has no backend.** A scheduled GitHub Actions job runs the model, guardrail
+and recommender every six hours and publishes the results as JSON to the `site-data` branch. The
+static Next.js site reads them in the browser. With no server, there is nothing to attack, nothing
+to go down and nothing to pay for (batch inference). The LLM components run on a locally hosted
+model; recorded assistant conversations are shown on the site.
 
-## Results that changed my mind
+## Evaluation highlights
 
-**Retrieval** (18 questions with known answers, top 3):
+**Retrieval** (18 questions with known answer sections, top 3):
 
-| Step | hit@1 | hit@3 | MRR |
+| Change | hit@1 | hit@3 | MRR |
 |---|---|---|---|
 | Baseline (vector search) | 72% | 78% | 0.74 |
-| Content fix (split mixed sections by topic) | 83% | 94% | 0.87 |
+| Content restructured (mixed sections split by topic) | 83% | 94% | 0.87 |
 | Hybrid search, first version | 78% | 94% | 0.85 ↓ |
 | Hybrid + common-word filter (IDF-like) | 83% | 94% | 0.88 |
 | + Query expansion (knots → Beaufort, in code) | **89%** | **100%** | **0.94** |
 
-My guess was that hybrid search would help most. Measured, the content fix did; the first
-hybrid version made things worse (PostgreSQL's ranking ignores how common a word is).
+Restructuring the content had the largest impact. The first hybrid version reduced quality
+because PostgreSQL's ranking ignores how common a word is; filtering common words fixed it.
 
-**LLM judge** (10 hand-labelled answer/source pairs): a single verdict agreed with the labels
-80% (contradictions) / 70% (added advice). Splitting the answer into claims and letting code
-decide: 100% / 100%.
+**LLM judge** (10 hand-labelled answer/source pairs): a single verdict agreed with the labels in
+80% (contradictions) and 70% (unsupported additions) of cases. Splitting answers into claims and
+deciding in code: 100% / 100%.
 
-**Agent answers** (10 scenarios with frozen tool results, each run 3 times): 8/10 at first.
-The evaluation found the agent turning "yarın" (tomorrow) into the wrong date 3 times out of 3;
-after the fix, 30/30 runs pass.
+**Agent answers** (10 scenarios with frozen tool results, each run 3 times): 8/10 on the first run.
+The evaluation caught the agent mapping "yarın" (tomorrow) to the wrong date in 3 of 3 runs; after
+the fix, 30/30 runs pass.
 
-**Wind in 48 hours** (MAE, knots, test year 2025): persistence 2.91, climatology 2.46,
-XGBoost 2.43, LSTM 2.40. All models hit the same information limit; a horizon experiment
-(1 h: 0.69 → 48 h: 2.43) shows why.
+**48-hour wind forecasting** (MAE in knots, test year 2025): persistence 2.91, climatology 2.46,
+XGBoost 2.43, LSTM 2.40. A horizon study (1 h: 0.69 → 48 h: 2.43) shows that the remaining error is
+an information limit of local history, not a modelling limit.
 
-## Principles I followed
+## Design principles
 
-- **Code computes, the LLM only words it.** Dates, comparisons and unit conversions are code.
-- **A prompt rule is a request; a code rule is a guarantee.** The LLM once changed a beginner's
-  level to "intermediate" despite the prompt; now the level is fixed in code and hidden from it.
-- **Safety text never comes from the LLM.** Cautions, uncertainty notes and source quotes are
-  fixed text added by code.
-- **Measure, don't guess.** Every improvement is checked against a baseline.
-- **Human in the loop.** New knowledge documents enter as drafts and reach search only after review.
+- **Code computes, the LLM only words it.** Dates, comparisons and unit conversions are done in code.
+- **Critical rules live in code, not in prompts.** The user's level is fixed by the system and
+  hidden from the model; the model cannot change it.
+- **Safety text never comes from the LLM.** Cautions, uncertainty notes and source quotes are fixed
+  texts added by the system.
+- **Measured, not assumed.** Every change is checked against a baseline on a fixed test set.
+- **Human review.** New knowledge documents enter as drafts and become searchable only after review.
 
 ## Tech stack
 
@@ -99,23 +101,23 @@ Docker · GitHub Actions · Next.js · TypeScript · Tailwind CSS · Netlify
 
 ## Repository layout
 
-| Path | What |
+| Path | Contents |
 |---|---|
 | `src/spotcast/data.py`, `config.py`, `places.py` | Open-Meteo data, spots and coastal places |
 | `src/spotcast/profiles.py`, `labels.py`, `model.py` | Activity profiles, labels, classifier, guardrail |
-| `src/spotcast/forecasting.py`, `wind_model.py`, `lstm_model.py` | 48 h wind forecasting |
+| `src/spotcast/forecasting.py`, `wind_model.py`, `lstm_model.py` | 48-hour wind forecasting |
 | `src/spotcast/recommend.py`, `api.py` | Optimizer and FastAPI service |
-| `src/spotcast/llm.py`, `explain.py`, `rag.py` | LLM, explanations, hybrid retrieval |
-| `src/spotcast/vision.py`, `ocr.py` | Sea photos → Beaufort, OCR of signs |
-| `src/spotcast/tools.py`, `agent.py`, `agent_graph.py`, `mcp_server.py` | Tools, agents, MCP |
+| `src/spotcast/llm.py`, `explain.py`, `rag.py` | LLM client, explanations, hybrid retrieval |
+| `src/spotcast/vision.py`, `ocr.py` | Sea-state estimation from photos, OCR of signs |
+| `src/spotcast/tools.py`, `agent.py`, `agent_graph.py`, `mcp_server.py` | Tools, agents, MCP server |
 | `src/spotcast/evals/`, `evals/` | Evaluation code and test sets |
 | `src/spotcast/tracking.py` | MLflow experiment tracking |
 | `src/spotcast/publish.py` | Batch job behind the website |
 | `knowledge/` | Spot guides, Beaufort scale, safety rules (RAG sources) |
-| `web/` | Next.js website |
-| `tests/` | 200+ tests (pytest, fakes only) |
+| `web/` | Next.js website (EN/TR) |
+| `tests/` | 200+ tests (pytest, no network or LLM needed) |
 
-## Run it locally
+## Running locally
 
 ```bash
 uv sync                                   # Python dependencies
@@ -130,7 +132,7 @@ LLM features need [Ollama](https://ollama.com) with `qwen3:8b` and `bge-m3`:
 ```bash
 uv run spotcast-index                     # build the knowledge index
 uv run spotcast-agent "Cumartesi Mersin'de rüzgâr sörfü uygun mu?"
-uv run spotcast-eval answers              # agent evaluation (uses the GPU for minutes)
+uv run spotcast-eval answers              # agent evaluation
 ```
 
 Website with local data:
@@ -140,11 +142,18 @@ uv run spotcast-publish --out web/public/data
 cd web && npm install && npm run dev
 ```
 
+Tests and checks:
+
+```bash
+uv run pytest -q
+uv run ruff check . && uv run ruff format --check .
+```
+
 ## Data and licenses
 
 Weather and wave data: [Open-Meteo.com](https://open-meteo.com/), licensed
 [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) (historical data from ERA5 /
-Copernicus). Sample photos and signs used for the vision and OCR experiments are public
-domain and are not part of this repository.
+Copernicus). Photos and signs used in the vision and OCR experiments are public domain and are not
+included in this repository.
 
-SpotCast is a learning project, not a safety service. Always check conditions on site.
+SpotCast forecasts are guidance only. Always check the conditions on site before going out.
