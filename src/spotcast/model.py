@@ -116,11 +116,20 @@ def model_path(profile: ActivityProfile, models_dir: Path = MODELS_DIR) -> Path:
     return models_dir / f"{profile.sport}_{profile.level}.joblib"
 
 
+def feature_ranges(X: pd.DataFrame) -> dict[str, list[float]]:
+    """The [min, max] of every numeric feature in the training data. Saved with the model,
+    so live data outside what the model has seen can be noticed (it once called 40 knots
+    "good", having never seen more than 27.7)."""
+    numeric = X.select_dtypes("number")
+    return {c: [float(numeric[c].min()), float(numeric[c].max())] for c in numeric}
+
+
 def save_model(
     model: ClassifierMixin,
     profile: ActivityProfile,
     train_years: list[int],
     models_dir: Path = MODELS_DIR,
+    ranges: dict[str, list[float]] | None = None,
 ) -> Path:
     """Save the model together with what is needed to use it correctly later."""
     bundle = {
@@ -128,6 +137,7 @@ def save_model(
         "features": FEATURES,  # the exact columns, in the exact order, it was trained on
         "profile": profile,
         "train_years": train_years,
+        "feature_ranges": ranges or {},  # what the model has seen (for monitoring)
         "sklearn_version": sklearn.__version__,
     }
     path = model_path(profile, models_dir)

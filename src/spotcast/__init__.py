@@ -13,6 +13,7 @@ from spotcast.labels import add_labels
 from spotcast.model import (
     FEATURES,
     evaluate,
+    feature_ranges,
     load_model,
     predict_conditions,
     predict_with_guardrail,
@@ -113,7 +114,12 @@ def main() -> None:
     all_years = sorted(labeled["time"].dt.year.unique().tolist())
     with run(EXPERIMENT, "final-model", profile=profile_tag):
         final_tree = train_tree(labeled[FEATURES], labeled["label"])
-        path = save_model(final_tree, profile, train_years=all_years)
+        path = save_model(
+            final_tree,
+            profile,
+            train_years=all_years,
+            ranges=feature_ranges(labeled[FEATURES]),
+        )
         mlflow.log_params(
             {
                 "model": "decision_tree",

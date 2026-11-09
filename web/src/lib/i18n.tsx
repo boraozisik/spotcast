@@ -105,6 +105,8 @@ const en = {
       return "No wave data for this point (lake, land or too close to the shore), so there is no suitability verdict; wind only.";
     return "No local guide for this place: ask locals about currents, rocks and restricted areas.";
   },
+  stale: (hours: number) =>
+    `This forecast is ${hours} hours old (it is normally refreshed every 6 hours). Conditions may have changed: check a current forecast before you go.`,
   loadError: {
     title: "Forecast data could not be loaded.",
     body: "Data is refreshed every 6 hours. Please try again shortly.",
@@ -243,6 +245,8 @@ const tr: Dictionary = {
       return "Bu nokta için dalga verisi yok (göl, kara ya da kıyıya çok yakın). Bu yüzden uygunluk değerlendirmesi yapılamadı; sadece rüzgâr bilgisi var.";
     return "Bu yer için yerel rehber yok: akıntı, kaya ve yasak alan gibi yerel tehlikeleri oradakilere sor.";
   },
+  stale: (hours: number) =>
+    `Bu tahmin ${hours} saat önce üretildi (normalde 6 saatte bir yenilenir). Koşullar değişmiş olabilir: gitmeden önce güncel bir tahmine bak.`,
   loadError: {
     title: "Tahmin verisi yüklenemedi.",
     body: "Veriler 6 saatte bir yenileniyor. Lütfen biraz sonra tekrar dene.",

@@ -22,6 +22,14 @@ export interface Meta {
   model: { type: string; features: string[]; train_years: number[] };
   uncertain_from_days: number;
   code_version: { git_commit: string; git_dirty: string };
+  quality?: {
+    rows: number;
+    places_total: number;
+    places_skipped: string[];
+    missing_wave_share: number;
+    implausible_values: Record<string, number>;
+    outside_training_range: Record<string, number>;
+  };
 }
 
 export interface Window {
