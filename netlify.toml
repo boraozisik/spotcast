@@ -7,9 +7,10 @@
   base = "web"
   command = "npm run build"
   publish = "out"
-  # Skip the build (and save Netlify credits) when nothing in web/ changed,
-  # e.g. after a Python-only commit
-  ignore = "git diff --quiet $CACHED_COMMIT_REF $COMMIT_REF -- ."
+  # Skip the build (and save Netlify credits) when nothing in web/ changed, e.g. after a
+  # Python-only commit. Without a build cache Netlify sets CACHED_COMMIT_REF = COMMIT_REF,
+  # so comparing them finds "no change" even when there is one: always build in that case.
+  ignore = '[ "$CACHED_COMMIT_REF" != "$COMMIT_REF" ] && git diff --quiet $CACHED_COMMIT_REF $COMMIT_REF -- .'
 
 [build.environment]
   NODE_VERSION = "22"
