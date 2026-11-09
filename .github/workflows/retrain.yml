@@ -1,0 +1,89 @@
+# Weekly retraining with a champion/challenger check and a human approval step.
+#
+#   evaluate  train a challenger on the latest data, score it against the current champion
+#             on the most recent week (which neither has seen). See src/spotcast/retrain.py.
+#   promote   only if the challenger won: WAITS for approval in the "model-approval"
+#             environment, then publishes the model to the `models` branch, where the
+#             site's batch job picks it up.
+#
+# One-time setup: Settings → Environments → New environment "model-approval" →
+# Required reviewers → add yourself. Without that rule GitHub approves automatically.
+
+name: Retrain model
+
+on:
+  schedule:
+    - cron: "37 4 * * 1" # Mondays 04:37 UTC (07:37 in Turkey)
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: retrain-model
+  cancel-in-progress: false
+
+jobs:
+  evaluate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    outputs:
+      promote: ${{ steps.retrain.outputs.promote }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+
+      - run: uv sync --locked --no-default-groups
+
+      - name: Get the current champion from the models branch
+        run: |
+          mkdir -p models
+          if git fetch -q --depth 1 origin models; then
+            git archive FETCH_HEAD | tar -x -C models
+            cat models/model_card.json
+          else
+            echo "No approved model yet: the first challenger becomes the champion."
+          fi
+
+      - name: Train the challenger and compare
+        id: retrain
+        run: uv run --no-sync spotcast-retrain --out candidate
+        env:
+          TZ: Europe/Istanbul
+
+      - uses: actions/upload-artifact@v4
+        if: steps.retrain.outputs.promote == 'true'
+        with:
+          name: candidate-model
+          path: candidate/
+          retention-days: 7
+
+  promote:
+    needs: evaluate
+    if: needs.evaluate.outputs.promote == 'true'
+    runs-on: ubuntu-latest
+    # A person must approve this job (environment protection rule) before it runs
+    environment: model-approval
+    permissions:
+      contents: write # to push the models branch; only this job can write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: candidate-model
+          path: candidate
+
+      - name: Publish the new champion to the models branch
+        working-directory: candidate
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          rm -f report.json
+          git init -q -b models
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -q -m "Model v$(python3 -c 'import json; print(json.load(open("model_card.json"))["version"])')"
+          git push -q -f "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" models
