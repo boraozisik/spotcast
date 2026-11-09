@@ -13,7 +13,7 @@
 
 [build.environment]
   NODE_VERSION = "22"
-  NEXT_PUBLIC_DATA_URL = "https://raw.githubusercontent.com/boraozisik/spotcast/site-data"
+  NEXT_PUBLIC_DATA_URL = "https://raw.githubusercontent.com/boraozisik/spotcast-ai/site-data"
 
 # Security headers. The site has no backend, but these still stop other sites from framing
 # it, block content-type tricks, and only allow data from this site and the data branch.
