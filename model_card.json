@@ -1,0 +1,57 @@
+{
+  "version": 2,
+  "profiles": [
+    "windsurf/beginner",
+    "windsurf/intermediate",
+    "windsurf/advanced",
+    "kitesurf/beginner",
+    "kitesurf/intermediate",
+    "kitesurf/advanced",
+    "sup/beginner",
+    "sup/intermediate",
+    "sup/advanced",
+    "kayak/beginner",
+    "kayak/intermediate",
+    "kayak/advanced"
+  ],
+  "train_start": "2022-01-01",
+  "train_end": "2026-10-27",
+  "train_rows": 4564512,
+  "holdout": [
+    "2026-10-28",
+    "2026-11-03"
+  ],
+  "holdout_scores": {
+    "accuracy": 1.0,
+    "macro_f1": 1.0,
+    "precision_bad": 1.0,
+    "recall_bad": 1.0,
+    "f1_bad": 1.0,
+    "precision_marginal": 1.0,
+    "recall_marginal": 1.0,
+    "f1_marginal": 1.0,
+    "precision_good": 1.0,
+    "recall_good": 1.0,
+    "f1_good": 1.0,
+    "unsafe_called_good": 0,
+    "per_profile_macro_f1": {
+      "windsurf/beginner": 1.0,
+      "windsurf/intermediate": 1.0,
+      "windsurf/advanced": 1.0,
+      "kitesurf/beginner": 1.0,
+      "kitesurf/intermediate": 1.0,
+      "kitesurf/advanced": 1.0,
+      "sup/beginner": 1.0,
+      "sup/intermediate": 1.0,
+      "sup/advanced": 1.0,
+      "kayak/beginner": 1.0,
+      "kayak/intermediate": 1.0,
+      "kayak/advanced": 1.0
+    }
+  },
+  "replaced_version": 1,
+  "code_version": {
+    "git_commit": "2db68b1",
+    "git_dirty": "true"
+  }
+}
