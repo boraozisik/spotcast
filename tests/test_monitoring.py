@@ -108,10 +108,9 @@ def test_bad_data_never_overwrites_published_files(tmp_path, monkeypatch):
     bundle = {
         "model": GoodModel(),
         "features": publish.FEATURES,
-        "profile": publish.get_profile("windsurf", "intermediate"),
         "train_years": [2024],
     }
-    monkeypatch.setattr(publish, "ensure_model", lambda profile, retrain=False: bundle)
+    monkeypatch.setattr(publish, "ensure_model", lambda retrain=False: bundle)
     monkeypatch.setattr(
         publish,
         "fetch_all_spots",

@@ -19,11 +19,7 @@ class AlwaysGoodModel:
         return np.array(["good"] * len(X))
 
 
-BUNDLE = {
-    "model": AlwaysGoodModel(),
-    "features": FEATURES,
-    "profile": WINDSURF_INTERMEDIATE,
-}
+BUNDLE = {"model": AlwaysGoodModel(), "features": FEATURES}
 
 
 def forecast(days=7, waves=True):

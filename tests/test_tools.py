@@ -8,7 +8,6 @@ import pytest
 
 from spotcast import tools
 from spotcast.model import FEATURES
-from spotcast.profiles import WINDSURF_INTERMEDIATE
 
 TODAY = datetime(2026, 11, 5, 8, 0)  # a Thursday morning
 
@@ -22,12 +21,8 @@ class AlwaysGoodModel:
 def fixed_clock_and_model(monkeypatch):
     """Every test runs at the same time, with a fake model instead of a file on disk."""
     monkeypatch.setattr(tools, "now", lambda: TODAY)
-    bundle = {
-        "model": AlwaysGoodModel(),
-        "features": FEATURES,
-        "profile": WINDSURF_INTERMEDIATE,
-    }
-    monkeypatch.setattr(tools, "_bundle", lambda sport, level: bundle)
+    bundle = {"model": AlwaysGoodModel(), "features": FEATURES}
+    monkeypatch.setattr(tools, "_bundle", lambda: bundle)
 
 
 def fake_forecast(latitude, longitude, waves=True):
@@ -68,7 +63,7 @@ def test_day_outside_the_forecast_is_refused():
 
 def test_unsupported_level_is_refused_by_the_schema():
     result = tools.TOOLS_BY_NAME["check_conditions"].call(
-        {"latitude": 36.8, "longitude": 34.6, "day": "2026-11-07", "level": "beginner"}
+        {"latitude": 36.8, "longitude": 34.6, "day": "2026-11-07", "level": "expert"}
     )
     # The schema only allows levels we have a profile for, and says which one
     assert "Invalid arguments" in result["error"]
@@ -150,11 +145,9 @@ def test_turkish_words_from_the_llm_are_accepted():
     assert (args.sport, args.level) == ("windsurf", "intermediate")
 
 
-def test_beginner_is_understood_but_not_supported_yet():
-    result = tools.TOOLS_BY_NAME["recommend_spots"].call({"level": "yeni başlayan"})
-    assert (
-        "Invalid arguments" in result["error"]
-    )  # mapped to "beginner", which has no profile
+def test_turkish_words_are_mapped_to_profiles():
+    args = tools.RecommendSpotsArgs(sport="Kano", level="yeni başlayan")
+    assert (args.sport, args.level) == ("kayak", "beginner")
 
 
 @pytest.mark.parametrize("value", ["null", "None", "", None])

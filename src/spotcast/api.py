@@ -121,7 +121,7 @@ class ForecastCache:
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     """Runs once when the server starts (like onModuleInit), not on every request."""
-    app.state.bundles = {key: load_model(profile) for key, profile in PROFILES.items()}
+    app.state.bundle = load_model()  # one model for every profile
     app.state.forecast = ForecastCache(
         lambda: fetch_all_spots(SPOTS), FORECAST_CACHE_SECONDS
     )
@@ -144,8 +144,8 @@ app = FastAPI(
 # ---------- Dependencies (like NestJS providers): easy to swap in tests ----------
 
 
-def get_bundles(request: Request) -> dict[tuple[str, str], dict[str, Any]]:
-    return request.app.state.bundles
+def get_bundle(request: Request) -> dict[str, Any]:
+    return request.app.state.bundle
 
 
 def get_forecast(request: Request) -> pd.DataFrame:
@@ -188,7 +188,7 @@ def resolve_profile(sport: str, level: str) -> ActivityProfile:
         raise HTTPException(404, str(error)) from error
 
 
-Bundles = Annotated[dict[tuple[str, str], dict[str, Any]], Depends(get_bundles)]
+Bundle = Annotated[dict[str, Any], Depends(get_bundle)]
 Forecast = Annotated[pd.DataFrame, Depends(get_forecast)]
 Now = Annotated[datetime, Depends(get_now)]
 LLM = Annotated[Callable[..., Explanation], Depends(get_llm)]
@@ -230,12 +230,10 @@ Top = Annotated[int, Query(ge=1, le=20)]
 
 
 def predicted_hours(
-    sport: str, level: str, bundles: dict, forecast: pd.DataFrame
+    sport: str, level: str, bundle: dict, forecast: pd.DataFrame
 ) -> tuple[ActivityProfile, pd.DataFrame]:
     profile = resolve_profile(sport, level)
-    return profile, predict_conditions(
-        bundles[(profile.sport, profile.level)], forecast
-    )
+    return profile, predict_conditions(bundle, forecast, profile)
 
 
 # ---------- Endpoints ----------
@@ -260,10 +258,10 @@ def list_profiles() -> list[dict[str, str]]:
 
 @app.get("/forecast")
 def forecast_hours(
-    sport: Sport, level: Level, bundles: Bundles, forecast: Forecast
+    sport: Sport, level: Level, bundle: Bundle, forecast: Forecast
 ) -> list[HourOut]:
     """Every hour of the next 7 days, for every spot, with the model's prediction."""
-    _, predicted = predicted_hours(sport, level, bundles, forecast)
+    _, predicted = predicted_hours(sport, level, bundle, forecast)
     return [
         HourOut(
             spot=row.spot,
@@ -280,12 +278,12 @@ def forecast_hours(
 def best_windows(
     sport: str,
     level: str,
-    bundles: dict,
+    bundle: dict,
     forecast: pd.DataFrame,
     prefs: Preferences,
     top: int,
 ) -> tuple[ActivityProfile, pd.DataFrame]:
-    profile, predicted = predicted_hours(sport, level, bundles, forecast)
+    profile, predicted = predicted_hours(sport, level, bundle, forecast)
     return profile, recommend(predicted, profile, prefs, top=top)
 
 
@@ -302,14 +300,14 @@ def to_window_list(best: pd.DataFrame, now: datetime) -> list[WindowOut]:
 def recommend_windows(
     sport: Sport,
     level: Level,
-    bundles: Bundles,
+    bundle: Bundle,
     forecast: Forecast,
     prefs: Prefs,
     now: Now,
     top: Top = 5,
 ) -> RecommendOut:
     """The best time windows in the next 7 days that fit your preferences."""
-    profile, best = best_windows(sport, level, bundles, forecast, prefs, top)
+    profile, best = best_windows(sport, level, bundle, forecast, prefs, top)
     return RecommendOut(
         sport=profile.sport,
         level=profile.level,
@@ -322,7 +320,7 @@ def recommend_windows(
 def explain_windows(
     sport: Sport,
     level: Level,
-    bundles: Bundles,
+    bundle: Bundle,
     forecast: Forecast,
     prefs: Prefs,
     now: Now,
@@ -334,7 +332,7 @@ def explain_windows(
 
     Tips come from SpotCast's guides (RAG) and cite them by number.
     """
-    profile, best = best_windows(sport, level, bundles, forecast, prefs, top)
+    profile, best = best_windows(sport, level, bundle, forecast, prefs, top)
     for attempt in range(1, LLM_ATTEMPTS + 1):
         try:
             result = explain_recommendation(

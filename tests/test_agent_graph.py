@@ -54,19 +54,21 @@ def test_tool_loop_and_finished_answer(monkeypatch):
     answer, steps = ask(app, "Nereye gideyim?")
 
     assert answer.startswith("Alaçatı.")
-    assert "orta seviye içindir" in answer and "kendin kontrol et" in answer
+    assert (
+        "orta seviye rüzgâr sörfü içindir" in answer and "kendin kontrol et" in answer
+    )
     assert [s.tool for s in steps] == ["recommend_spots"]
     # Code, not the LLM, sets the level
     assert tool.received[0]["level"] == "intermediate"
 
 
-def test_unsupported_level_never_reaches_the_llm():
+def test_unsupported_activity_never_reaches_the_llm():
     llm = FakeChatModel()  # would fail if invoked
     app = build_graph(
-        llm=llm, profile_reader=reads(level="beginner"), checkpointer=MemorySaver()
+        llm=llm, profile_reader=reads(sport="other"), checkpointer=MemorySaver()
     )
 
-    answer, steps = ask(app, "Yeni başlıyorum")
+    answer, steps = ask(app, "Yarın dalışa gideceğim")
 
     assert "henüz öneri veremiyorum" in answer
     assert llm.calls == [] and steps == []
@@ -99,7 +101,9 @@ def test_follow_up_remembers_the_conversation(monkeypatch):
     # The first question is still in the conversation
     assert "Cumartesi Mersin?" in texts
     assert sum(isinstance(m, SystemMessage) for m in second_turn_messages) == 1
-    assert "orta seviye içindir" in answer  # still unknown level → note again
+    assert (
+        "orta seviye rüzgâr sörfü içindir" in answer
+    )  # still unknown level → note again
 
 
 def test_step_limit_stops_the_graph(monkeypatch):

@@ -23,7 +23,7 @@ from pydantic import BaseModel, Field
 
 from spotcast.explain import CAUTION, turkish_date
 from spotcast.llm import chat, chat_with_tools
-from spotcast.profiles import PROFILES
+from spotcast.profiles import LEVELS, PROFILES, SPORTS
 from spotcast.tools import TOOLS, TOOLS_BY_NAME, ProfileArgs, Tool
 from spotcast.uncertainty import notes_for_results
 
@@ -58,7 +58,12 @@ TURKISH_LEVELS = {
     "intermediate": "orta",
     "advanced": "ileri",
 }
-TURKISH_SPORTS = {"windsurf": "rüzgâr sörfü", "kitesurf": "uçurtma sörfü", "sup": "SUP"}
+TURKISH_SPORTS = {
+    "windsurf": "rüzgâr sörfü",
+    "kitesurf": "uçurtma sörfü",
+    "sup": "SUP",
+    "kayak": "kano",
+}
 
 PROFILE_PROMPT = """Read the user's message. Which water sport and which skill level does the
 user say? Use "unknown" when they don't say it. Do not guess."""
@@ -67,8 +72,9 @@ user say? Use "unknown" when they don't say it. Do not guess."""
 class UserProfile(BaseModel):
     """What the user said about themselves. The LLM only READS this from the question."""
 
-    sport: Literal["windsurf", "kitesurf", "sup", "other", "unknown"] = Field(
-        description="windsurf = rüzgâr sörfü, kitesurf = uçurtma sörfü, sup = SUP"
+    sport: Literal["windsurf", "kitesurf", "sup", "kayak", "other", "unknown"] = Field(
+        description="windsurf = rüzgâr sörfü, kitesurf = uçurtma sörfü, "
+        "sup = SUP / ayakta kürek sörfü, kayak = kano, other = any other activity"
     )
     level: Literal["beginner", "intermediate", "advanced", "unknown"] = Field(
         description="beginner = yeni başlayan, intermediate = orta, advanced = ileri"
@@ -109,7 +115,9 @@ def date_table(now: datetime) -> str:
 SPORT_WORDS = {
     "windsurf": r"rüzg[aâ]r ?sörf|windsurf",
     "kitesurf": r"kite|uçurtma",
-    "sup": r"\bsup\b|kürek ?sörf",
+    "sup": r"\bsup\b|kürek ?sörf|ayakta kürek",
+    # Not the Turkish word "kayak": it means skiing
+    "kayak": r"\bkano|kayaking|sea kayak",
 }
 LEVEL_WORDS = {
     "beginner": r"yeni başla|acemi|başlangıç|ilk kez|ilk defa|hiç yapmadım|beginner",
@@ -156,17 +164,19 @@ def quoted_source(steps: list[Step]) -> str:
 
 def unsupported_answer(sport: str, level: str) -> str:
     """Fixed text, written by code: an LLM once 'helped' a beginner by using intermediate."""
-    supported = ", ".join(
-        f"{TURKISH_LEVELS.get(lvl, lvl)} seviye {TURKISH_SPORTS.get(spt, spt)}"
-        for spt, lvl in sorted(PROFILES)
+    sports = ", ".join(TURKISH_SPORTS.get(s, s) for s in SPORTS)
+    levels = ", ".join(
+        TURKISH_LEVELS.get(lvl, lvl) for lvl in LEVELS if (sport, lvl) in PROFILES
     )
-    asked = (
-        f"{TURKISH_LEVELS.get(level, level)} seviye {TURKISH_SPORTS.get(sport, sport)}"
-    )
+    if sport in SPORTS:  # a known sport at a level we have no profile for
+        asked = f"{TURKISH_LEVELS.get(level, level)} seviye {TURKISH_SPORTS.get(sport, sport)}"
+        hint = f"{TURKISH_SPORTS.get(sport, sport).capitalize()} için seviyeler: {levels}. "
+    else:
+        asked, hint = "Bu aktivite", ""
     return (
-        f"SpotCast şu an sadece {supported} için değerlendirme yapabiliyor. "
-        f"{asked.capitalize()} için henüz öneri veremiyorum. Başka bir seviyenin sonuçları "
-        f"sana uygun olmayabilir, o yüzden onları kullanmanı önermiyorum."
+        f"SpotCast şu an sadece şu sporlar için değerlendirme yapabiliyor: {sports}. "
+        f"{hint}{asked} için henüz öneri veremiyorum. Başka bir spor ya da seviyenin "
+        f"sonuçları sana uygun olmayabilir, o yüzden onları kullanmanı önermiyorum."
     )
 
 
@@ -220,10 +230,20 @@ def decide_profile(said: UserProfile) -> Who:
     level = DEFAULT_LEVEL if said.level == "unknown" else said.level
     if (sport, level) not in PROFILES:
         return Who(sport, level, refusal=unsupported_answer(sport, level))
+    # Code says which assumption it made: the limits differ a lot between sports
+    missing = [
+        what
+        for what, unknown in (
+            ("sporunu", said.sport == "unknown"),
+            ("seviyeni", said.level == "unknown"),
+        )
+        if unknown
+    ]
     note = (
-        f"\n\nℹ️ Seviyeni belirtmediğin için bu değerlendirme {TURKISH_LEVELS[level]} seviye "
-        f"içindir; seviyen farklıysa sonuçlar sana uymayabilir."
-        if said.level == "unknown"
+        f"\n\nℹ️ {' ve '.join(missing).capitalize()} belirtmediğin için bu değerlendirme "
+        f"{TURKISH_LEVELS[level]} seviye {TURKISH_SPORTS[sport]} içindir; senin durumun "
+        f"farklıysa sonuçlar sana uymayabilir."
+        if missing
         else ""
     )
     return Who(sport, level, level_note=note)

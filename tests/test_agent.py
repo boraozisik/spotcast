@@ -6,7 +6,13 @@ from datetime import datetime
 import pytest
 
 from spotcast import agent
-from spotcast.agent import UserProfile, read_profile, run_agent, schema_for_llm
+from spotcast.agent import (
+    UserProfile,
+    decide_profile,
+    read_profile,
+    run_agent,
+    schema_for_llm,
+)
 from spotcast.tools import TOOLS_BY_NAME, ProfileArgs
 
 NOW = datetime(2026, 11, 5, 8, 0)  # Thursday
@@ -90,16 +96,41 @@ def test_the_loop_stops_after_max_steps():
     assert len(result.steps) == 3
 
 
-def test_unsupported_level_is_answered_by_code_without_the_agent():
+def test_unsupported_activity_is_answered_by_code_without_the_agent():
     llm = scripted_llm()  # would fail if it were called
 
     result = run_agent(
-        "Yeni başlıyorum", now=NOW, llm=llm, profile_reader=reads(level="beginner")
+        "Yarın dalışa gideceğim", now=NOW, llm=llm, profile_reader=reads(sport="other")
     )
 
     assert "henüz öneri veremiyorum" in result.answer
-    assert "orta seviye" in result.answer  # says what IS supported
+    assert "kano" in result.answer  # says what IS supported
     assert llm.seen == []  # the agent never ran
+
+
+@pytest.mark.parametrize(
+    ("sport", "level", "expected"),
+    [
+        ("unknown", "beginner", "Sporunu belirtmediğin için"),
+        ("sup", "unknown", "Seviyeni belirtmediğin için"),
+        ("unknown", "unknown", "Sporunu ve seviyeni belirtmediğin için"),
+    ],
+)
+def test_code_says_which_assumption_it_made(sport, level, expected):
+    who = decide_profile(UserProfile(sport=sport, level=level))
+    assert who.refusal is None
+    assert expected in who.level_note
+
+
+def test_beginner_is_supported_now(monkeypatch):
+    fake = use_fake(monkeypatch, "recommend_spots", {"windows_best_first": []})
+    llm = scripted_llm(tool_call("recommend_spots"), answer("Tamam."))
+
+    run_agent(
+        "Yeni başlıyorum", now=NOW, llm=llm, profile_reader=reads(level="beginner")
+    )
+
+    assert fake.received["level"] == "beginner"
 
 
 def test_llm_cannot_change_the_level(monkeypatch):
@@ -126,7 +157,7 @@ def test_unknown_level_adds_a_note_and_the_caution(monkeypatch):
         "Nereye gideyim?", now=NOW, llm=llm, profile_reader=reads(level="unknown")
     )
 
-    assert "orta seviye içindir" in result.answer
+    assert "orta seviye rüzgâr sörfü içindir" in result.answer
     assert "kendin kontrol et" in result.answer
 
 
@@ -173,6 +204,9 @@ def test_knowledge_answer_quotes_the_source_word_for_word(monkeypatch):
         ("Rüzgar sörfü, orta seviyedeyim", "windsurf", "intermediate"),
         ("İlk kez deneyeceğim, windsurf için Akyaka nasıl?", "windsurf", "beginner"),
         ("Kite için ileri seviye biri olarak soruyorum", "kitesurf", "advanced"),
+        ("Kano ile yeni başlayan biriyim", "kayak", "beginner"),
+        ("Ayakta kürek sörfü, orta seviye", "sup", "intermediate"),
+        ("Kayak tatili için orta seviyeyim", None, "intermediate"),  # kayak = skiing
     ],
 )
 def test_known_words_are_read_by_code(question, sport, level):
@@ -184,8 +218,7 @@ def test_known_words_are_read_by_code(question, sport, level):
 
     profile = read_profile(question, ask=fake_llm)
 
-    assert profile.sport == sport
+    assert profile.sport == (sport or "unknown")
     assert profile.level == (level or "unknown")
-    assert bool(calls) == (
-        level is None
-    )  # the LLM is only asked for what code can't read
+    # The LLM is only asked when code can't read something
+    assert bool(calls) == (sport is None or level is None)

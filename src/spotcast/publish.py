@@ -27,15 +27,16 @@ import requests
 
 from spotcast.config import HISTORY_END, HISTORY_START, TIMEZONE
 from spotcast.data import fetch_all_spots, fetch_conditions
-from spotcast.labels import add_labels
 from spotcast.locations import PLACES, SPOTS
 from spotcast.model import (
     FEATURES,
+    MONITORED_INPUTS,
     feature_ranges,
     load_model,
     predict_conditions,
     save_model,
     train_tree,
+    training_table,
 )
 from spotcast.monitoring import (
     DataQualityError,
@@ -44,7 +45,7 @@ from spotcast.monitoring import (
     quality_report,
     write_run_summary,
 )
-from spotcast.profiles import ActivityProfile, get_profile
+from spotcast.profiles import PROFILES, ActivityProfile, get_profile
 from spotcast.recommend import Preferences, recommend
 from spotcast.tools import assess_day
 from spotcast.uncertainty import UNCERTAIN_FROM_DAYS, days_ahead
@@ -69,26 +70,29 @@ def slug(text: str) -> str:
 # ---------- The model ----------
 
 
-def ensure_model(profile: ActivityProfile, retrain: bool = False) -> dict[str, Any]:
-    """The saved model, or a freshly trained one if there is none (e.g. on GitHub's machine)."""
+def ensure_model(retrain: bool = False) -> dict[str, Any]:
+    """The saved model, or a freshly trained one if there is none (e.g. on GitHub's machine,
+    or when models/ only holds a model in an older format)."""
     if not retrain:
         try:
-            return load_model(profile)
+            bundle = load_model()
+            if bundle["features"] == FEATURES:
+                return bundle
+            print("The saved model uses older features.")
         except FileNotFoundError:
             pass
     print("Training the model from history...")
     history = fetch_all_spots(SPOTS, HISTORY_START, HISTORY_END)
-    labeled = add_labels(history, profile)
-    years = sorted(labeled["time"].dt.year.unique().tolist())
-    X = labeled[FEATURES]
+    profiles = list(PROFILES.values())
+    table = training_table(history, profiles)
     save_model(
-        train_tree(X, labeled["label"]),
-        profile,
-        years,
-        ranges=feature_ranges(X),
+        train_tree(table[FEATURES], table["label"]),
+        profiles,
+        sorted(table["time"].dt.year.unique().tolist()),
+        ranges=feature_ranges(history[MONITORED_INPUTS]),
         train_end=HISTORY_END,
     )
-    return load_model(profile)
+    return load_model()
 
 
 # ---------- Building the data (no network: easy to test) ----------
@@ -225,7 +229,7 @@ def build_meta(profile: ActivityProfile, bundle: dict, now: datetime) -> dict:
         "timezone": TIMEZONE,
         "sport": profile.sport,
         "level": profile.level,
-        "profile": asdict(profile),
+        "profile": asdict(profile),  # includes ideal_wind_kn
         "model": {
             "type": type(bundle["model"]).__name__,
             "features": bundle["features"],
@@ -247,12 +251,12 @@ def write_json(path: Path, data: Any) -> None:
 
 def publish(out: Path, retrain: bool = False) -> None:
     profile = get_profile(SPORT, LEVEL)
-    bundle = ensure_model(profile, retrain)
+    bundle = ensure_model(retrain)
     now = local_now()
 
     print("Fetching the forecast for the guided spots...")
     spot_forecast = fetch_all_spots(SPOTS)
-    predicted = predict_conditions(bundle, spot_forecast)
+    predicted = predict_conditions(bundle, spot_forecast, profile)
 
     places = []
     for spot in SPOTS:  # reuse what we already fetched

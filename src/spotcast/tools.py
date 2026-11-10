@@ -34,7 +34,10 @@ from spotcast.uncertainty import days_ahead, lead_time_note
 # allowed values (an enum), so the LLM can't send "rüzgâr sörfü" or "orta".
 Sport = Literal[tuple(sorted({sport for sport, _ in PROFILES}))]
 Level = Literal[tuple(sorted({level for _, level in PROFILES}))]
-SPORT_HELP = "windsurf = rüzgâr sörfü"
+SPORT_HELP = (
+    "windsurf = rüzgâr sörfü, kitesurf = uçurtma sörfü, sup = SUP / ayakta kürek sörfü, "
+    "kayak = kano"
+)
 LEVEL_HELP = (
     "yeni başlayan = beginner, orta = intermediate, ileri = advanced. "
     "Only the allowed values are supported."
@@ -45,6 +48,12 @@ SPORT_ALIASES = {
     "rüzgâr sörfü": "windsurf",
     "rüzgar sörfü": "windsurf",
     "sörf": "windsurf",
+    "uçurtma sörfü": "kitesurf",
+    "kite": "kitesurf",
+    "kürek sörfü": "sup",
+    "ayakta kürek sörfü": "sup",
+    "kano": "kayak",
+    "deniz kanosu": "kayak",
 }
 LEVEL_ALIASES = {
     "yeni başlayan": "beginner",
@@ -132,9 +141,9 @@ def now() -> datetime:
 
 
 @lru_cache
-def _bundle(sport: str, level: str) -> dict:
-    """Load each profile's model once, not on every tool call."""
-    return load_model(get_profile(sport, level))
+def _bundle() -> dict:
+    """Load the model (one for all profiles) once, not on every tool call."""
+    return load_model()
 
 
 def _profile(sport: str, level: str) -> ActivityProfile:
@@ -220,7 +229,7 @@ def check_conditions(args: CheckConditionsArgs) -> dict:
         args.latitude,
         args.longitude,
         profile,
-        _bundle(profile.sport, profile.level),
+        _bundle(),
         now(),
     )
 
@@ -243,7 +252,7 @@ def assess_day(
     # The model needs wave height. Without it we report the wind but give no verdict.
     hours["prediction"] = "unknown"
     if has_waves.any():
-        known = predict_conditions(bundle, hours[has_waves])
+        known = predict_conditions(bundle, hours[has_waves], profile)
         hours.loc[has_waves, "prediction"] = known["prediction"]
 
     daylight = hours[hours["is_day"]]
@@ -321,9 +330,7 @@ def recommend_spots(args: RecommendSpotsArgs) -> dict:
     if args.day is not None:
         _check_day(args.day)
 
-    predicted = predict_conditions(
-        _bundle(profile.sport, profile.level), fetch_all_spots(SPOTS)
-    )
+    predicted = predict_conditions(_bundle(), fetch_all_spots(SPOTS), profile)
     prefs = Preferences(
         earliest_hour=args.earliest_hour,
         latest_hour=args.latest_hour,

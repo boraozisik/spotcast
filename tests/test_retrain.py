@@ -9,7 +9,6 @@ import pytest
 
 from spotcast import retrain
 from spotcast.model import load_model
-from spotcast.profiles import WINDSURF_INTERMEDIATE
 
 TODAY = date(2026, 11, 16)  # data until 9 Nov is settled; holdout 3-9 Nov
 
@@ -83,13 +82,15 @@ def test_first_run_promotes_and_writes_model_and_card(tmp_path, short_history):
     )
 
     assert report["promote"] and report["new_version"] == 1
-    bundle = load_model(WINDSURF_INTERMEDIATE, out)
+    bundle = load_model(out)
     assert (
         bundle["train_end"] == "2026-11-02"
     )  # the day before the holdout: never saw it
     card = json.loads((out / retrain.CARD).read_text())
     assert card["holdout"] == ["2026-11-03", "2026-11-09"]
     assert card["holdout_scores"]["unsafe_called_good"] == 0
+    assert len(card["profiles"]) == 12  # one model judged on every profile
+    assert set(card["holdout_scores"]["per_profile_macro_f1"]) == set(card["profiles"])
 
 
 def test_second_round_compares_with_the_champion(tmp_path, short_history):
@@ -118,7 +119,23 @@ def test_nothing_happens_without_new_data(tmp_path, short_history):
     report = retrain.retrain(out, TODAY, models_dir=first, fetch=must_not_fetch)
 
     assert not report["promote"] and "Not enough new data" in report["reason"]
-    assert not (out / "windsurf_intermediate.joblib").exists()
+    assert not (out / "suitability.joblib").exists()
+
+
+def test_old_format_champion_is_replaced_and_its_version_continues(
+    tmp_path, short_history
+):
+    """The `models` branch held one model per profile before Stage 11."""
+    old = tmp_path / "old"
+    old.mkdir()
+    (old / "windsurf_intermediate.joblib").write_bytes(b"old format")
+    (old / retrain.CARD).write_text(json.dumps({"version": 2}))
+
+    out = tmp_path / "new"
+    report = retrain.retrain(out, TODAY, models_dir=old, fetch=synthetic_history)
+
+    assert report["champion"] is None  # nothing comparable to judge against
+    assert report["promote"] and report["new_version"] == 3
 
 
 def test_summary_mentions_the_decision():

@@ -58,5 +58,5 @@ def test_get_profile_finds_known_profile():
 
 
 def test_get_profile_rejects_unknown_profile():
-    with pytest.raises(ValueError, match="No profile for sup/beginner"):
-        get_profile("sup", "beginner")
+    with pytest.raises(ValueError, match="No profile for diving/beginner"):
+        get_profile("diving", "beginner")

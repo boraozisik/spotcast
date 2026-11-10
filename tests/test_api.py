@@ -9,7 +9,7 @@ from fastapi.testclient import TestClient
 
 from spotcast.api import (
     app,
-    get_bundles,
+    get_bundle,
     get_forecast,
     get_llm,
     get_now,
@@ -18,7 +18,6 @@ from spotcast.api import (
 from spotcast.explain import Explanation, Tip
 from spotcast.llm import LLMOutputError, LLMUnavailableError
 from spotcast.model import FEATURES
-from spotcast.profiles import WINDSURF_INTERMEDIATE
 from spotcast.rag import Chunk, SearchResult
 
 
@@ -59,14 +58,8 @@ def fake_retrieve(question, spots):
 @pytest.fixture
 def client():
     """A test client whose dependencies are fakes, like overriding providers in NestJS."""
-    bundle = {
-        "model": AlwaysGoodModel(),
-        "features": FEATURES,
-        "profile": WINDSURF_INTERMEDIATE,
-    }
-    app.dependency_overrides[get_bundles] = lambda: {
-        ("windsurf", "intermediate"): bundle
-    }
+    bundle = {"model": AlwaysGoodModel(), "features": FEATURES}
+    app.dependency_overrides[get_bundle] = lambda: bundle
     app.dependency_overrides[get_forecast] = fake_forecast
     app.dependency_overrides[get_now] = lambda: datetime(2026, 11, 6, 12, 0)
     app.dependency_overrides[get_retriever] = lambda: fake_retrieve
@@ -102,8 +95,15 @@ def test_forecast_lists_every_hour_with_guardrail(client):
 
 
 def test_unknown_profile_is_404(client):
-    response = client.get("/recommend", params={"sport": "sup", "level": "beginner"})
+    response = client.get("/recommend", params={"sport": "diving", "level": "beginner"})
     assert response.status_code == 404
+
+
+def test_every_profile_is_served_by_the_one_model(client):
+    response = client.get("/forecast", params={"sport": "sup", "level": "beginner"})
+    assert response.status_code == 200
+    profiles = client.get("/profiles").json()
+    assert {"sport": "kayak", "level": "advanced"} in profiles and len(profiles) == 12
 
 
 @pytest.mark.parametrize(
