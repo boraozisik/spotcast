@@ -6,10 +6,11 @@ import pandas as pd
 import requests
 from sqlalchemy.exc import SQLAlchemyError
 
-from spotcast.config import HISTORY_END, HISTORY_START, HISTORY_TABLE, SPOTS
+from spotcast.config import HISTORY_END, HISTORY_START, HISTORY_TABLE
 from spotcast.data import fetch_all_spots, load_history
 from spotcast.db import get_engine, save_to_db
 from spotcast.labels import add_labels
+from spotcast.locations import SPOTS
 from spotcast.model import (
     FEATURES,
     evaluate,

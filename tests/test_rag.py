@@ -1,6 +1,6 @@
 """Tests for splitting knowledge documents. No database or Ollama needed."""
 
-from spotcast.config import SPOTS
+from spotcast.locations import SPOTS
 from spotcast.rag import load_knowledge, parse_front_matter, split_document
 
 DOC = """---

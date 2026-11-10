@@ -16,7 +16,6 @@ from fastapi import Depends, FastAPI, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 from sqlalchemy.exc import SQLAlchemyError
 
-from spotcast.config import SPOTS
 from spotcast.data import fetch_all_spots
 from spotcast.db import get_engine
 from spotcast.explain import (
@@ -26,6 +25,7 @@ from spotcast.explain import (
     explain_recommendation,
 )
 from spotcast.llm import LLMOutputError, LLMUnavailableError, chat
+from spotcast.locations import SPOTS
 from spotcast.model import load_model, predict_conditions
 from spotcast.profiles import PROFILES, ActivityProfile, get_profile
 from spotcast.rag import SearchResult, search

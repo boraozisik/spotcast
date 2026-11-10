@@ -25,9 +25,10 @@ from zoneinfo import ZoneInfo
 import pandas as pd
 import requests
 
-from spotcast.config import HISTORY_END, HISTORY_START, SPOTS, TIMEZONE
+from spotcast.config import HISTORY_END, HISTORY_START, TIMEZONE
 from spotcast.data import fetch_all_spots, fetch_conditions
 from spotcast.labels import add_labels
+from spotcast.locations import PLACES, SPOTS
 from spotcast.model import (
     FEATURES,
     feature_ranges,
@@ -43,7 +44,6 @@ from spotcast.monitoring import (
     quality_report,
     write_run_summary,
 )
-from spotcast.places import PLACES
 from spotcast.profiles import ActivityProfile, get_profile
 from spotcast.recommend import Preferences, recommend
 from spotcast.tools import assess_day

@@ -7,7 +7,7 @@ import numpy as np
 import pandas as pd
 from xgboost import XGBRegressor
 
-from spotcast.config import HISTORY_END, HISTORY_START, SPOTS
+from spotcast.config import HISTORY_END, HISTORY_START
 from spotcast.data import load_history
 from spotcast.forecasting import (
     FORECAST_FEATURES,
@@ -15,6 +15,7 @@ from spotcast.forecasting import (
     TARGET,
     make_forecast_table,
 )
+from spotcast.locations import SPOTS
 
 TEST_YEAR = 2025
 EXPERIMENT = "wind-forecast-48h"  # MLflow experiment shared with the LSTM runs

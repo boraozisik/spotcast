@@ -12,10 +12,9 @@ from spotcast.config import (
     FORECAST_URL,
     MARINE_URL,
     REQUEST_TIMEOUT_SECONDS,
-    SPOTS,
     TIMEZONE,
-    Spot,
 )
+from spotcast.locations import SPOTS, Location
 
 
 def _fetch_hourly(
@@ -128,7 +127,7 @@ def fetch_conditions(
 
 
 def fetch_all_spots(
-    spots: list[Spot],
+    spots: list[Location],
     start: date | None = None,
     end: date | None = None,
 ) -> pd.DataFrame:

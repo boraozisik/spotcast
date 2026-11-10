@@ -26,9 +26,10 @@ from typing import Any
 
 import pandas as pd
 
-from spotcast.config import HISTORY_END, HISTORY_START, MODELS_DIR, SPOTS
+from spotcast.config import HISTORY_END, HISTORY_START, MODELS_DIR
 from spotcast.data import fetch_all_spots
 from spotcast.labels import add_labels, is_unsafe
+from spotcast.locations import SPOTS
 from spotcast.model import (
     FEATURES,
     classification_scores,

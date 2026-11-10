@@ -21,9 +21,10 @@ import pandas as pd
 import requests
 from pydantic import BaseModel, Field, ValidationError, field_validator
 
-from spotcast.config import REQUEST_TIMEOUT_SECONDS, SPOTS, Spot
+from spotcast.config import REQUEST_TIMEOUT_SECONDS
 from spotcast.data import fetch_all_spots, fetch_conditions
 from spotcast.explain import turkish_date
+from spotcast.locations import SPOTS, Location
 from spotcast.model import load_model, predict_conditions
 from spotcast.profiles import PROFILES, ActivityProfile, get_profile
 from spotcast.recommend import Preferences, find_windows, recommend
@@ -152,7 +153,7 @@ def distance_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
     return 2 * r * math.asin(math.sqrt(a))
 
 
-def nearest_spot(latitude: float, longitude: float) -> tuple[Spot, float]:
+def nearest_spot(latitude: float, longitude: float) -> tuple[Location, float]:
     spot = min(
         SPOTS, key=lambda s: distance_km(latitude, longitude, s.latitude, s.longitude)
     )

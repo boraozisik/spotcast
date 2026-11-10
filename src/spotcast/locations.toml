@@ -1,0 +1,198 @@
+# Every location SpotCast knows. This file is the single source of truth: the code reads
+# it, and `uv run spotcast-sync-locations` copies it into the database.
+#
+# Fields:
+#   name       unique display name
+#   region     province
+#   latitude   decimal degrees (-90..90); a point on the water, not the town centre
+#   longitude  decimal degrees (-180..180)
+#   guide      optional: local guide in knowledge/ (e.g. "spots/alacati.md"). A location
+#              with a guide is a "spot": curated, with a training history. Without one it
+#              is a "place": assessed from the forecast alone.
+#
+# Adding a location is one [[location]] block. Check first that the point gets wave data
+# (Open-Meteo marine returns nothing for points on land).
+#
+# Keep the three spots first and in this order: the trained wind models (Stage 3) see the
+# spot as a category in this order.
+
+# --- Guided spots ---
+
+[[location]]
+name = "Kuşadası Pamucak"
+region = "Aydın"
+latitude = 37.94
+longitude = 27.27
+guide = "spots/kusadasi_pamucak.md"
+
+[[location]]
+name = "Alaçatı"
+region = "İzmir"
+latitude = 38.255
+longitude = 26.375
+guide = "spots/alacati.md"
+
+[[location]]
+name = "Akyaka"
+region = "Muğla"
+latitude = 37.04
+longitude = 28.31
+guide = "spots/akyaka.md"
+
+# --- Coastal places (no local guide yet) ---
+
+[[location]]
+name = "Mezitli sahili"
+region = "Mersin"
+latitude = 36.735
+longitude = 34.530
+
+[[location]]
+name = "Karataş"
+region = "Adana"
+latitude = 36.555
+longitude = 35.385
+
+[[location]]
+name = "İskenderun"
+region = "Hatay"
+latitude = 36.600
+longitude = 36.170
+
+[[location]]
+name = "Konyaaltı"
+region = "Antalya"
+latitude = 36.855
+longitude = 30.620
+
+[[location]]
+name = "Kemer"
+region = "Antalya"
+latitude = 36.600
+longitude = 30.570
+
+[[location]]
+name = "Side"
+region = "Antalya"
+latitude = 36.765
+longitude = 31.385
+
+[[location]]
+name = "Alanya"
+region = "Antalya"
+latitude = 36.535
+longitude = 31.990
+
+[[location]]
+name = "Kaş"
+region = "Antalya"
+latitude = 36.195
+longitude = 29.640
+
+[[location]]
+name = "Fethiye Çalış"
+region = "Muğla"
+latitude = 36.665
+longitude = 29.095
+
+[[location]]
+name = "Marmaris"
+region = "Muğla"
+latitude = 36.840
+longitude = 28.270
+
+[[location]]
+name = "Datça"
+region = "Muğla"
+latitude = 36.725
+longitude = 27.685
+
+[[location]]
+name = "Bodrum Bitez"
+region = "Muğla"
+latitude = 37.025
+longitude = 27.390
+
+[[location]]
+name = "Didim Altınkum"
+region = "Aydın"
+latitude = 37.350
+longitude = 27.260
+
+[[location]]
+name = "Seferihisar Sığacık"
+region = "İzmir"
+latitude = 38.195
+longitude = 26.785
+
+[[location]]
+name = "Urla Gülbahçe"
+region = "İzmir"
+latitude = 38.355
+longitude = 26.640
+
+[[location]]
+name = "Foça"
+region = "İzmir"
+latitude = 38.665
+longitude = 26.745
+
+[[location]]
+name = "Ayvalık Sarımsaklı"
+region = "Balıkesir"
+latitude = 39.245
+longitude = 26.665
+
+[[location]]
+name = "Assos"
+region = "Çanakkale"
+latitude = 39.485
+longitude = 26.335
+
+[[location]]
+name = "Bozcaada"
+region = "Çanakkale"
+latitude = 39.825
+longitude = 26.040
+
+[[location]]
+name = "Gökçeada Aydıncık"
+region = "Çanakkale"
+latitude = 40.130
+longitude = 25.965
+
+[[location]]
+name = "Kilyos"
+region = "İstanbul"
+latitude = 41.255
+longitude = 29.030
+
+[[location]]
+name = "Şile"
+region = "İstanbul"
+latitude = 41.180
+longitude = 29.610
+
+[[location]]
+name = "Akçakoca"
+region = "Düzce"
+latitude = 41.090
+longitude = 31.120
+
+[[location]]
+name = "Sinop"
+region = "Sinop"
+latitude = 42.020
+longitude = 35.160
+
+[[location]]
+name = "Atakum"
+region = "Samsun"
+latitude = 41.335
+longitude = 36.265
+
+[[location]]
+name = "Trabzon"
+region = "Trabzon"
+latitude = 41.010
+longitude = 39.720

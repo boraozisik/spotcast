@@ -40,7 +40,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: models
-          key: model-${{ hashFiles('src/spotcast/labels.py', 'src/spotcast/model.py', 'src/spotcast/profiles.py', 'src/spotcast/config.py', 'uv.lock') }}
+          key: model-${{ hashFiles('src/spotcast/labels.py', 'src/spotcast/model.py', 'src/spotcast/profiles.py', 'src/spotcast/config.py', 'src/spotcast/locations.toml', 'uv.lock') }}
 
       # The approved champion (see retrain.yml) always wins over the cached fallback
       - name: Use the approved model from the models branch
