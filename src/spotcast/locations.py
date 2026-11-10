@@ -107,6 +107,30 @@ PLACES = [loc for loc in LOCATIONS if not loc.is_spot]
 BY_NAME = {loc.name: loc for loc in LOCATIONS}
 
 
+def distance_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    """Straight-line distance on the Earth's surface (haversine formula)."""
+    r = 6371.0
+    p1, p2 = math.radians(lat1), math.radians(lat2)
+    dp, dl = p2 - p1, math.radians(lon2 - lon1)
+    a = math.sin(dp / 2) ** 2 + math.cos(p1) * math.cos(p2) * math.sin(dl / 2) ** 2
+    return 2 * r * math.asin(math.sqrt(a))
+
+
+def locations_within(
+    latitude: float, longitude: float, radius_km: float, sport: str | None = None
+) -> list[tuple[Location, float]]:
+    """Known locations within this straight-line distance, nearest first. With a sport:
+    only those where it is done (or where we don't know, i.e. no `sports` list)."""
+    found = [
+        (loc, distance_km(latitude, longitude, loc.latitude, loc.longitude))
+        for loc in LOCATIONS
+        if sport is None or loc.supports(sport)
+    ]
+    return sorted(
+        ((loc, km) for loc, km in found if km <= radius_km), key=lambda pair: pair[1]
+    )
+
+
 def spots_for(sport: str) -> list[Location]:
     """Guided spots where this sport is done."""
     return [spot for spot in SPOTS if spot.supports(sport)]

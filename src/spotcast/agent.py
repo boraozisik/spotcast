@@ -24,7 +24,7 @@ from pydantic import BaseModel, Field
 from spotcast.explain import CAUTION, turkish_date
 from spotcast.llm import chat, chat_with_tools
 from spotcast.profiles import LEVELS, PROFILES, SPORTS
-from spotcast.tools import TOOLS, TOOLS_BY_NAME, ProfileArgs, Tool
+from spotcast.tools import CONDITION_TOOLS, TOOLS, TOOLS_BY_NAME, ProfileArgs, Tool
 from spotcast.uncertainty import notes_for_results
 
 MAX_STEPS = 6  # each step is one LLM call; a normal question needs 2-4
@@ -34,6 +34,9 @@ SYSTEM_PROMPT = """You are SpotCast, an assistant for water sports in Turkey. An
 Use the tools to get facts. Never guess wind, waves, coordinates or dates yourself.
 - Place + day ("Saturday in Mersin") → find_location, then check_conditions.
 - Where / when to go → recommend_spots.
+- The user says where they live or start from ("I live in Izmir, where should I go?")
+  → find_location, then recommend_near with those coordinates. Distances are
+  straight-line (kuş uçuşu): say so.
 - Advice or safety questions → search_knowledge.
 If find_location returns several places, pick the coastal one that matches the question.
 Use the date table below to turn day names into dates; do not calculate dates yourself.
@@ -45,6 +48,11 @@ Answer rules:
 - For safety advice from search_knowledge, keep the guide's own words. Do not rephrase
   instructions like "do X, then Y": rewording them can flip their meaning.
 - If all hours are "sınırda" (marginal), do not call the conditions "uygun".
+- For a window, give the good and marginal hours separately ("4 saat uygun, 6 saat
+  sınırda"); do not call the whole window "uygun" when part of it is marginal.
+- For recommend_near: name the best place with its distance in km (kuş uçuşu) and
+  mention the next option too.
+- Never add names, neighbourhoods or details that are not in the tool results.
 - If a tool returns an error, read it: fix your arguments and call again if you can;
   otherwise tell the user what is not possible.
 - Never call conditions safe ("güvenli"). Keep the answer short: 3-6 sentences.
@@ -249,13 +257,35 @@ def decide_profile(said: UserProfile) -> Who:
     return Who(sport, level, level_note=note)
 
 
+def nearby_notes(steps: list[Step]) -> list[str]:
+    """Facts about recommend_near results that must not depend on the LLM: an LLM once
+    said "both places have a local guide" when the best one had none."""
+    windows = [
+        w
+        for s in steps
+        if s.tool == "recommend_near" and "error" not in s.result
+        for w in s.result.get("windows_best_first", [])
+    ]
+    if not windows:
+        return []
+    distances = dict.fromkeys(f"{w['spot']} {w['distance_km']} km" for w in windows)
+    notes = [
+        f"📏 Kuş uçuşu mesafe: {', '.join(distances)}. Yol mesafesi daha uzun olabilir."
+    ]
+    unguided = list(dict.fromkeys(w["spot"] for w in windows if not w["local_guide"]))
+    if unguided:
+        notes.append(
+            f"ℹ️ {', '.join(unguided)} için yerel rehberimiz yok: akıntı, kayalık ve "
+            f"yasak alanlar gibi yerel tehlikeleri orada sor."
+        )
+    return notes
+
+
 def finish_answer(content: str, steps: list[Step], level_note: str) -> str:
     """Add the texts that code writes, never the LLM: level note, caution, source quote."""
     answer = content.strip()
     conditions = [
-        s.result
-        for s in steps
-        if s.tool in ("check_conditions", "recommend_spots") and "error" not in s.result
+        s.result for s in steps if s.tool in CONDITION_TOOLS and "error" not in s.result
     ]
     if conditions:
         answer += level_note
@@ -263,6 +293,8 @@ def finish_answer(content: str, steps: list[Step], level_note: str) -> str:
         # warnings on, but asking is not a guarantee, so code adds them too.
         for note in notes_for_results(conditions):
             answer += f"\n\n⏳ {note}"
+        for note in nearby_notes(steps):
+            answer += f"\n\n{note}"
         answer += f"\n\n⚠️ {CAUTION}"
     return answer + quoted_source(steps)
 

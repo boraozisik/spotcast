@@ -155,3 +155,71 @@ def test_turkish_words_are_mapped_to_profiles():
 def test_search_knowledge_treats_null_text_as_no_spot(value):
     args = tools.SearchKnowledgeArgs(question="offshore", spot=value)
     assert args.spot is None
+
+
+# ---------- recommend_near: "I live in Izmir, where should I go?" ----------
+
+IZMIR = (38.42, 27.14)
+
+
+def fake_all_spots(locations):
+    """Every place gets the same weather, plus the columns fetch_all_spots adds."""
+    frames = []
+    for loc in locations:
+        df = fake_forecast(loc.latitude, loc.longitude)
+        df.insert(0, "spot", loc.name)
+        df["shore_facing"], df["sheltered"] = loc.shore_facing, loc.sheltered
+        frames.append(df)
+    return pd.concat(frames, ignore_index=True)
+
+
+def test_locations_within_are_nearest_first_and_respect_sports():
+    from spotcast.locations import locations_within
+
+    near = locations_within(*IZMIR, radius_km=80)
+    distances = [km for _, km in near]
+    assert distances == sorted(distances) and all(km <= 80 for km in distances)
+    assert "Alaçatı" in [loc.name for loc, _ in near]
+    # Alaçatı's guide doesn't list kayak, so it is left out for kayak
+    kayak = [loc.name for loc, _ in locations_within(*IZMIR, 80, sport="kayak")]
+    assert "Alaçatı" not in kayak and kayak
+
+
+def test_recommend_near_checks_places_around_the_user(monkeypatch):
+    monkeypatch.setattr(tools, "fetch_all_spots", fake_all_spots)
+    result = tools.TOOLS_BY_NAME["recommend_near"].call(
+        {
+            "latitude": IZMIR[0],
+            "longitude": IZMIR[1],
+            "radius_km": 80,
+            "day": "2026-11-07",
+        }
+    )
+
+    assert "straight-line" in result["distance"]
+    checked = result["places_checked"]
+    assert len(checked) <= tools.MAX_NEARBY
+    assert all(p["distance_km"] <= 80 for p in checked)
+    best = result["windows_best_first"][0]
+    assert {"distance_km", "region", "local_guide"} <= set(best)
+    if not best["local_guide"]:
+        assert any("No local guide" in w for w in best["warnings"])
+
+
+def test_recommend_near_says_how_far_the_nearest_place_is():
+    result = tools.TOOLS_BY_NAME["recommend_near"].call(
+        {"latitude": 39.93, "longitude": 32.85, "radius_km": 50}  # Ankara
+    )
+    assert "No known place for windsurf within 50 km" in result["error"]
+    assert "The nearest is" in result["error"]
+
+
+def test_weather_service_failure_is_a_readable_error(monkeypatch):
+    def offline(*args, **kwargs):
+        raise tools.requests.ConnectionError("no network")
+
+    monkeypatch.setattr(tools, "fetch_all_spots", offline)
+    result = tools.TOOLS_BY_NAME["recommend_near"].call(
+        {"latitude": IZMIR[0], "longitude": IZMIR[1]}
+    )
+    assert "weather service did not answer" in result["error"]

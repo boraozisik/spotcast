@@ -31,7 +31,7 @@ def call(name, arguments):
     return asyncio.run(go())
 
 
-def test_all_four_tools_are_offered():
+def test_all_five_tools_are_offered():
     async def go():
         async with Client(server) as client:
             return await client.list_tools()
@@ -42,6 +42,7 @@ def test_all_four_tools_are_offered():
         "find_location",
         "check_conditions",
         "recommend_spots",
+        "recommend_near",
         "search_knowledge",
     }
     level = tools["check_conditions"].input_schema["properties"]["level"]

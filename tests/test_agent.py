@@ -222,3 +222,23 @@ def test_known_words_are_read_by_code(question, sport, level):
     assert profile.level == (level or "unknown")
     # The LLM is only asked when code can't read something
     assert bool(calls) == (sport is None or level is None)
+
+
+def test_nearby_answers_get_distances_and_guide_notes_from_code(monkeypatch):
+    windows = [
+        {"spot": "Seferihisar Sığacık", "distance_km": 39, "local_guide": False},
+        {"spot": "Alaçatı", "distance_km": 69, "local_guide": True},
+    ]
+    use_fake(monkeypatch, "recommend_near", {"windows_best_first": windows})
+    llm = scripted_llm(
+        tool_call("recommend_near", latitude=38.4, longitude=27.1),
+        answer("Her iki yerde de yerel rehber var."),  # the mistake an LLM once made
+    )
+
+    result = run_agent(
+        "İzmir'deyim, nereye gideyim?", now=NOW, llm=llm, profile_reader=reads()
+    )
+
+    assert "Kuş uçuşu mesafe: Seferihisar Sığacık 39 km, Alaçatı 69 km" in result.answer
+    assert "Seferihisar Sığacık için yerel rehberimiz yok" in result.answer
+    assert "Alaçatı için" not in result.answer  # it has a guide

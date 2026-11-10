@@ -185,3 +185,10 @@ def test_answer_cases_file_is_valid():
         assert set(case.must_call) <= set(case.tools), case.id
         assert not case.judge or "search_knowledge" in case.tools, case.id
     assert len({c.id for c in cases}) == len(cases)
+
+
+def test_advice_to_look_for_better_conditions_is_not_a_claim():
+    assert suitable_claims("Rüzgâr sörfü için daha uygun koşullar arayın.") == []
+    # ...but saying better conditions are coming is: no tool said that
+    claim = "Daha uygun koşullar bekleniyor."
+    assert suitable_claims(claim) == [claim]

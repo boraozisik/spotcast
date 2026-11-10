@@ -120,6 +120,36 @@ def recommend_spots(
     return _with_safety(_run("recommend_spots", arguments), sport, level)
 
 
+@server.tool(description=TOOLS_BY_NAME["recommend_near"].description)
+def recommend_near(
+    latitude: float,
+    longitude: float,
+    radius_km: Annotated[
+        float,
+        Field(gt=0, le=300, description="How far the user will go, straight-line km"),
+    ] = 100,
+    day: Day | None = None,
+    weekend_only: bool = False,
+    earliest_hour: Annotated[int, Field(ge=0, le=23)] = 9,
+    latest_hour: Annotated[int, Field(ge=0, le=23)] = 18,
+    sport: Sport = "windsurf",
+    level: Level = "intermediate",
+) -> dict:
+    _check_profile(sport, level)
+    arguments = {
+        "latitude": latitude,
+        "longitude": longitude,
+        "radius_km": radius_km,
+        "day": day,
+        "weekend_only": weekend_only,
+        "earliest_hour": earliest_hour,
+        "latest_hour": latest_hour,
+        "sport": sport,
+        "level": level,
+    }
+    return _with_safety(_run("recommend_near", arguments), sport, level)
+
+
 @server.tool(description=TOOLS_BY_NAME["search_knowledge"].description)
 def search_knowledge(
     question: Annotated[str, Field(description="What to look up, with context")],
