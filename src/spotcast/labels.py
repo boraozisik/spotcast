@@ -6,10 +6,15 @@ The rules are the same for every sport; the numbers come from an ActivityProfile
 import pandas as pd
 
 from spotcast.profiles import ActivityProfile
+from spotcast.shore import unsafe_offshore_flags
 
 
 def is_unsafe(
-    profile: ActivityProfile, wind_kn: float, wave_m: float, is_day: bool
+    profile: ActivityProfile,
+    wind_kn: float,
+    wave_m: float,
+    is_day: bool,
+    offshore: bool = False,
 ) -> bool:
     """True if conditions are dangerous for this sport and level.
 
@@ -20,17 +25,25 @@ def is_unsafe(
     # Being on the water in the dark is unsafe for everyone: nobody can see you.
     if not is_day:
         return True
+    # Wind from the land pushes you out to sea, and it is gustier further out
+    limit = profile.max_offshore_wind_kn
+    if offshore and limit is not None and wind_kn > limit:
+        return True
     return wind_kn > profile.max_wind_kn or wave_m >= profile.max_wave_m
 
 
 def label_conditions(
-    profile: ActivityProfile, wind_kn: float, wave_m: float, is_day: bool
+    profile: ActivityProfile,
+    wind_kn: float,
+    wave_m: float,
+    is_day: bool,
+    offshore: bool = False,
 ) -> str:
     """Return "good", "marginal" or "bad" for this sport and level.
 
     Danger is checked first, so the worst condition always wins.
     """
-    if is_unsafe(profile, wind_kn, wave_m, is_day):
+    if is_unsafe(profile, wind_kn, wave_m, is_day, offshore):
         return "bad"
     if wind_kn < profile.min_wind_kn:
         return "bad"
@@ -44,9 +57,13 @@ def add_labels(df: pd.DataFrame, profile: ActivityProfile) -> pd.DataFrame:
     """Return a copy of the conditions table with a "label" column for this profile."""
     labeled = df.copy()
     labeled["label"] = [
-        label_conditions(profile, wind, wave, day)
-        for wind, wave, day in zip(
-            df["wind_speed_10m"], df["wave_height"], df["is_day"], strict=True
+        label_conditions(profile, wind, wave, day, offshore)
+        for wind, wave, day, offshore in zip(
+            df["wind_speed_10m"],
+            df["wave_height"],
+            df["is_day"],
+            unsafe_offshore_flags(df),
+            strict=True,
         )
     ]
     return labeled

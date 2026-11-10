@@ -7,11 +7,16 @@ The website has no backend: it only reads these files. Nothing is open to the in
 that could be abused, nothing sleeps, nothing costs money. The code that runs here is the
 same model, guardrail, recommender and uncertainty notes the API and the agent use.
 
-Files written:
-    meta.json             when, which model and profile, the fixed safety text
-    recommendations.json  best windows at our guided spots ("any day" and "weekend")
-    spots.json            hour-by-hour forecast and verdict for each guided spot
-    places.json           day-by-day assessment for every place (spots + PLACES)
+Files written (one set per activity profile: 4 sports x 3 levels):
+    meta.json                         when, which model, every profile and its limits
+    profiles/<sport>_<level>/
+        recommendations.json          best windows at our guided spots (any day, weekend)
+        spots.json                    hour by hour at each guided spot
+        places.json                   day by day at every place (spots + PLACES)
+    recommendations.json, spots.json, places.json at the top: the default profile in the
+    format of the first site version, so a site deployed before this change keeps working.
+
+The weather is fetched once; only the verdicts differ per profile.
 """
 
 import argparse
@@ -25,16 +30,18 @@ from zoneinfo import ZoneInfo
 import pandas as pd
 import requests
 
-from spotcast.config import HISTORY_END, HISTORY_START, SPOTS, TIMEZONE
-from spotcast.data import fetch_all_spots, fetch_conditions
-from spotcast.labels import add_labels
+from spotcast.config import HISTORY_END, HISTORY_START, TIMEZONE
+from spotcast.data import fetch_all_spots
+from spotcast.locations import BY_NAME, PLACES, SPOTS, TRAINING_LOCATIONS, Location
 from spotcast.model import (
     FEATURES,
+    MONITORED_INPUTS,
     feature_ranges,
     load_model,
     predict_conditions,
     save_model,
     train_tree,
+    training_table,
 )
 from spotcast.monitoring import (
     DataQualityError,
@@ -43,15 +50,16 @@ from spotcast.monitoring import (
     quality_report,
     write_run_summary,
 )
-from spotcast.places import PLACES
-from spotcast.profiles import ActivityProfile, get_profile
+from spotcast.profiles import PROFILES, ActivityProfile, get_profile
 from spotcast.recommend import Preferences, recommend
+from spotcast.shore import shore_wind
 from spotcast.tools import assess_day
 from spotcast.uncertainty import UNCERTAIN_FROM_DAYS, days_ahead
 from spotcast.versioning import code_version
 
-SPORT, LEVEL = "windsurf", "intermediate"
+SPORT, LEVEL = "windsurf", "intermediate"  # the default profile
 TOP_WINDOWS = 5
+LEGACY_NOTE_CODES = {"lead_time", "no_waves", "no_guide"}  # what the first site knows
 
 
 def local_now() -> datetime:
@@ -69,26 +77,29 @@ def slug(text: str) -> str:
 # ---------- The model ----------
 
 
-def ensure_model(profile: ActivityProfile, retrain: bool = False) -> dict[str, Any]:
-    """The saved model, or a freshly trained one if there is none (e.g. on GitHub's machine)."""
+def ensure_model(retrain: bool = False) -> dict[str, Any]:
+    """The saved model, or a freshly trained one if there is none (e.g. on GitHub's machine,
+    or when models/ only holds a model in an older format)."""
     if not retrain:
         try:
-            return load_model(profile)
+            bundle = load_model()
+            if bundle["features"] == FEATURES:
+                return bundle
+            print("The saved model uses older features.")
         except FileNotFoundError:
             pass
     print("Training the model from history...")
-    history = fetch_all_spots(SPOTS, HISTORY_START, HISTORY_END)
-    labeled = add_labels(history, profile)
-    years = sorted(labeled["time"].dt.year.unique().tolist())
-    X = labeled[FEATURES]
+    history = fetch_all_spots(TRAINING_LOCATIONS, HISTORY_START, HISTORY_END)
+    profiles = list(PROFILES.values())
+    table = training_table(history, profiles)
     save_model(
-        train_tree(X, labeled["label"]),
-        profile,
-        years,
-        ranges=feature_ranges(X),
+        train_tree(table[FEATURES], table["label"]),
+        profiles,
+        sorted(table["time"].dt.year.unique().tolist()),
+        ranges=feature_ranges(history[MONITORED_INPUTS]),
         train_end=HISTORY_END,
     )
-    return load_model(profile)
+    return load_model()
 
 
 # ---------- Building the data (no network: easy to test) ----------
@@ -161,6 +172,9 @@ def build_spots(predicted: pd.DataFrame, now: datetime) -> list[dict]:
                         if pd.isna(r.wave_height)
                         else round(float(r.wave_height), 2),
                         "is_day": bool(r.is_day),
+                        "shore_wind": shore_wind(
+                            r.wind_direction_10m, spot.shore_facing
+                        ),
                         "label": r.prediction,
                     }
                     for r in rows.itertuples()
@@ -170,7 +184,9 @@ def build_spots(predicted: pd.DataFrame, now: datetime) -> list[dict]:
     return spots
 
 
-def site_notes(assessment: dict) -> list[dict]:
+def site_notes(
+    assessment: dict, location: Location | None, profile: ActivityProfile
+) -> list[dict]:
     """Warnings as codes, not sentences: the website words them in the visitor's language
     (English or Turkish). Built from facts, so they never depend on an LLM."""
     notes = []
@@ -178,6 +194,14 @@ def site_notes(assessment: dict) -> list[dict]:
         notes.append({"code": "no_waves"})
     if assessment["local_guide_spot"] is None:
         notes.append({"code": "no_guide"})
+    if location is not None and not location.supports(profile.sport):
+        notes.append({"code": "not_for_sport"})
+    if not assessment["shore_known"]:
+        notes.append({"code": "no_shore"})
+    if hours := assessment["offshore_hours"]:
+        notes.append({"code": "offshore", "hours": hours})
+    if hours := assessment["sheltered_offshore_hours"]:
+        notes.append({"code": "sheltered_offshore", "hours": hours})
     return notes + lead_time(assessment["days_ahead"])
 
 
@@ -205,9 +229,8 @@ def build_place(
         # language-neutral codes; the website writes them in the visitor's language
         assessment.pop("warnings")
         assessment.pop("day")
-        days.append(
-            {"date": f"{day:%Y-%m-%d}", **assessment, "notes": site_notes(assessment)}
-        )
+        notes = site_notes(assessment, BY_NAME.get(name), profile)
+        days.append({"date": f"{day:%Y-%m-%d}", **assessment, "notes": notes})
     return {
         "name": name,
         "region": region,
@@ -219,13 +242,29 @@ def build_place(
     }
 
 
+def profile_id(profile: ActivityProfile) -> str:
+    """'windsurf_intermediate': the folder name of a profile's files."""
+    return f"{profile.sport}_{profile.level}"
+
+
 def build_meta(profile: ActivityProfile, bundle: dict, now: datetime) -> dict:
     return {
         "generated_at": f"{now:%Y-%m-%dT%H:%M}",
         "timezone": TIMEZONE,
+        # The default profile, also in the first site version's fields
         "sport": profile.sport,
         "level": profile.level,
-        "profile": asdict(profile),
+        "profile": asdict(profile),  # includes ideal_wind_kn
+        "default_profile": profile_id(profile),
+        "profiles": [{"id": profile_id(p), **asdict(p)} for p in PROFILES.values()],
+        "spots": [
+            {
+                "name": s.name,
+                "sports": list(s.sports) if s.sports else None,
+                "sheltered": s.sheltered,
+            }
+            for s in SPOTS
+        ],  # fmt: skip
         "model": {
             "type": type(bundle["model"]).__name__,
             "features": bundle["features"],
@@ -245,17 +284,42 @@ def write_json(path: Path, data: Any) -> None:
     )
 
 
-def publish(out: Path, retrain: bool = False) -> None:
-    profile = get_profile(SPORT, LEVEL)
-    bundle = ensure_model(profile, retrain)
-    now = local_now()
+def fetch_places(places: list[Location]) -> tuple[dict[str, pd.DataFrame], list[str]]:
+    """Forecasts for all places in one batched request (2 HTTP calls for 26 places).
 
-    print("Fetching the forecast for the guided spots...")
-    spot_forecast = fetch_all_spots(SPOTS)
-    predicted = predict_conditions(bundle, spot_forecast)
+    If that fails, fall back to one place at a time, so a single unreachable place can
+    never take the whole site down. Returns the forecasts by name and the skipped names.
+    """
+    try:
+        everything = fetch_all_spots(places)
+        return {
+            name: rows.drop(columns="spot")
+            for name, rows in everything.groupby("spot", sort=False)
+        }, []
+    except requests.RequestException as error:
+        print(f"  batched request failed ({error}); fetching place by place")
 
+    found, skipped = {}, []
+    for place in places:
+        try:
+            found[place.name] = fetch_all_spots([place]).drop(columns="spot")
+        except requests.RequestException as error:
+            print(f"  skipped {place.name}: {error}")
+            skipped.append(place.name)
+    return found, skipped
+
+
+def build_profile(
+    profile: ActivityProfile,
+    bundle: dict,
+    spot_forecast: pd.DataFrame,
+    place_forecasts: dict[str, pd.DataFrame],
+    now: datetime,
+) -> dict[str, Any]:
+    """The three files of one profile, from forecasts fetched once for all profiles."""
+    predicted = predict_conditions(bundle, spot_forecast, profile)
     places = []
-    for spot in SPOTS:  # reuse what we already fetched
+    for spot in SPOTS:  # reuse the spots' forecast
         forecast = spot_forecast[spot_forecast["spot"] == spot.name].drop(
             columns="spot"
         )
@@ -263,44 +327,75 @@ def publish(out: Path, retrain: bool = False) -> None:
             build_place(spot.name, None, spot.latitude, spot.longitude,
                         forecast, profile, bundle, now)
         )  # fmt: skip
-    print(f"Fetching and assessing {len(PLACES)} places...")
-    skipped = []
-    fetched = [spot_forecast]  # every hourly row, for the quality report
     for place in PLACES:
-        try:
-            forecast = fetch_conditions(place.latitude, place.longitude)
-        except requests.RequestException as error:
-            # One unreachable place must not take the whole site down
-            print(f"  skipped {place.name}: {error}")
-            skipped.append(place.name)
-            continue
-        fetched.append(forecast)
-        places.append(
-            build_place(place.name, place.region, place.latitude, place.longitude,
-                        forecast, profile, bundle, now)
-        )  # fmt: skip
+        if place.name in place_forecasts:
+            places.append(
+                build_place(place.name, place.region, place.latitude, place.longitude,
+                            place_forecasts[place.name], profile, bundle, now)
+            )  # fmt: skip
+    return {
+        "recommendations.json": build_recommendations(predicted, profile, now),
+        "spots.json": build_spots(predicted, now),
+        "places.json": places,
+    }
+
+
+def legacy_places(places: list[dict]) -> list[dict]:
+    """The first site version shows any unknown note code as "no local guide": keep only
+    the codes it knows."""
+    return [
+        place
+        | {
+            "days": [
+                day
+                | {"notes": [n for n in day["notes"] if n["code"] in LEGACY_NOTE_CODES]}
+                for day in place["days"]
+            ]
+        }
+        for place in places
+    ]
+
+
+def publish(out: Path, retrain: bool = False) -> None:
+    default = get_profile(SPORT, LEVEL)
+    bundle = ensure_model(retrain)
+    now = local_now()
+
+    print("Fetching the forecast for the guided spots...")
+    spot_forecast = fetch_all_spots(SPOTS)
+    print(f"Fetching {len(PLACES)} places...")
+    place_forecasts, skipped = fetch_places(PLACES)
 
     # Check the data before anything is written: bad data must never replace good data
-    report = quality_report(pd.concat(fetched), bundle, len(PLACES), skipped)
+    fetched = pd.concat([spot_forecast, *place_forecasts.values()])
+    report = quality_report(fetched, bundle, len(PLACES), skipped)
     write_run_summary(report)
     for notice in notices(report):
         print(f"  warning: {notice}")
     if stops := problems(report):
         raise DataQualityError("Not published: " + " ".join(stops))
 
-    out.mkdir(parents=True, exist_ok=True)
+    print(f"Assessing for {len(PROFILES)} profiles...")
+    for profile in PROFILES.values():
+        files = build_profile(profile, bundle, spot_forecast, place_forecasts, now)
+        folder = out / "profiles" / profile_id(profile)
+        folder.mkdir(parents=True, exist_ok=True)
+        for name, content in files.items():
+            write_json(folder / name, content)
+        if profile == default:  # the first site version's files, at the top
+            write_json(out / "recommendations.json", files["recommendations.json"])
+            write_json(out / "spots.json", files["spots.json"])
+            write_json(out / "places.json", legacy_places(files["places.json"]))
     write_json(
-        out / "meta.json", {**build_meta(profile, bundle, now), "quality": report}
+        out / "meta.json", {**build_meta(default, bundle, now), "quality": report}
     )
-    write_json(
-        out / "recommendations.json", build_recommendations(predicted, profile, now)
+
+    total = sum(f.stat().st_size for f in out.rglob("*.json")) // 1024
+    one = sum(
+        f.stat().st_size
+        for f in (out / "profiles" / profile_id(default)).glob("*.json")
     )
-    write_json(out / "spots.json", build_spots(predicted, now))
-    write_json(out / "places.json", places)
-    sizes = ", ".join(
-        f"{p.name} {p.stat().st_size // 1024} KB" for p in sorted(out.glob("*.json"))
-    )
-    print(f"Wrote {out}: {sizes}")
+    print(f"Wrote {out}: {total} KB in all, {one // 1024} KB per profile")
 
 
 def main() -> None:

@@ -1,6 +1,8 @@
-"""Project-wide settings: API URLs, paths, date ranges and the list of spots."""
+"""Project-wide settings: API URLs, paths and date ranges.
 
-from dataclasses import dataclass
+The locations (spots and places) are data: see locations.toml and locations.py.
+"""
+
 from datetime import date
 from pathlib import Path
 
@@ -17,17 +19,3 @@ MODELS_DIR = PROJECT_ROOT / "models"
 HISTORY_START = date(2022, 1, 1)  # marine (wave) data starts in 2022
 HISTORY_END = date(2026, 10, 24)  # ~1 week back: the newest days are not final yet
 HISTORY_TABLE = "conditions_history"
-
-
-@dataclass(frozen=True)
-class Spot:
-    name: str
-    latitude: float
-    longitude: float
-
-
-SPOTS = [
-    Spot("Kuşadası Pamucak", 37.94, 27.27),
-    Spot("Alaçatı", 38.255, 26.375),
-    Spot("Akyaka", 37.04, 28.31),
-]

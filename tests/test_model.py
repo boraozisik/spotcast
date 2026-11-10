@@ -4,17 +4,20 @@ import numpy as np
 import pandas as pd
 import pytest
 
+from spotcast.labels import add_labels
 from spotcast.model import (
     FEATURES,
     TARGET,
     load_model,
+    make_features,
     predict_conditions,
     predict_with_guardrail,
     save_model,
     split_by_year,
     train_tree,
+    training_table,
 )
-from spotcast.profiles import WINDSURF_INTERMEDIATE
+from spotcast.profiles import WINDSURF_INTERMEDIATE, get_profile
 
 
 class AlwaysGoodModel:
@@ -25,7 +28,7 @@ class AlwaysGoodModel:
 
 
 def make_conditions(rows: list[tuple[float, float, bool]]) -> pd.DataFrame:
-    """Build a features table from (wind_kn, wave_m, is_day) tuples."""
+    """Build a conditions table from (wind_kn, wave_m, is_day) tuples."""
     return pd.DataFrame(
         [
             {
@@ -36,8 +39,7 @@ def make_conditions(rows: list[tuple[float, float, bool]]) -> pd.DataFrame:
                 "is_day": day,
             }
             for wind, wave, day in rows
-        ],
-        columns=FEATURES,
+        ]
     )
 
 
@@ -67,8 +69,43 @@ def test_guardrail_keeps_model_prediction_when_safe():
     ]
 
 
+def test_features_are_distances_to_the_profile_limits():
+    X = make_features(make_conditions([(30, 2.5, True)]), WINDSURF_INTERMEDIATE)
+    assert list(X.columns) == FEATURES
+    row = X.iloc[0]
+    assert row["wind_over_max"] == 2  # 30 - 28: above the limit
+    assert row["wind_under_good_max"] == -5  # 25 - 30: above the good range
+    assert row["wave_over_max"] == 0.5  # 2.5 - 2.0
+
+
+def test_one_model_learns_the_idea_and_works_for_an_unseen_profile():
+    """Trained on windsurf only, the model must still judge SUP correctly."""
+    hours = pd.date_range("2024-01-01", periods=24 * 60, freq="h")
+    history = pd.DataFrame(
+        {
+            "spot": "Test",
+            "time": hours,
+            "wind_speed_10m": np.resize(np.arange(0, 36, 0.5), len(hours)),
+            "wave_height": np.resize(np.arange(0, 3, 0.1), len(hours)),
+            "is_day": True,
+        }
+    )
+    windsurfers = [
+        get_profile("windsurf", level)
+        for level in ("beginner", "intermediate", "advanced")
+    ]
+    table = training_table(history, windsurfers)
+    assert len(table) == 3 * len(history)
+    tree = train_tree(table[FEATURES], table["label"], max_depth=6)
+
+    sup = get_profile("sup", "intermediate")  # calm water: the opposite of windsurf
+    truth = add_labels(history, sup)["label"]
+    predicted = tree.predict(make_features(history, sup))
+    assert (predicted == truth).mean() > 0.95
+
+
 def test_split_by_year_puts_each_year_on_the_right_side():
-    df = make_conditions([(18, 0.5, True)] * 4)
+    df = make_features(make_conditions([(18, 0.5, True)] * 4), WINDSURF_INTERMEDIATE)
     df["time"] = pd.to_datetime(
         ["2024-06-01 12:00", "2024-12-31 23:00", "2025-01-01 00:00", "2025-06-01 12:00"]
     )
@@ -84,35 +121,42 @@ def test_split_by_year_puts_each_year_on_the_right_side():
 
 
 def test_save_and_load_model_round_trip(tmp_path):
-    X = make_conditions([(18, 0.5, True), (5, 0.1, True), (18, 0.5, False)])
+    X = make_features(
+        make_conditions([(18, 0.5, True), (5, 0.1, True), (18, 0.5, False)]),
+        WINDSURF_INTERMEDIATE,
+    )
     y = ["good", "bad", "bad"]
     tree = train_tree(X, pd.Series(y))
 
-    path = save_model(tree, WINDSURF_INTERMEDIATE, [2024], models_dir=tmp_path)
-    bundle = load_model(WINDSURF_INTERMEDIATE, models_dir=tmp_path)
+    path = save_model(tree, [WINDSURF_INTERMEDIATE], [2024], models_dir=tmp_path)
+    bundle = load_model(models_dir=tmp_path)
 
-    assert path.name == "windsurf_intermediate.joblib"
+    assert path.name == "suitability.joblib"
     assert bundle["features"] == FEATURES
-    assert bundle["profile"] == WINDSURF_INTERMEDIATE
+    assert list(bundle["profiles"]) == ["windsurf/intermediate"]
     assert bundle["train_years"] == [2024]
     assert list(bundle["model"].predict(X)) == y  # same answers after loading
 
 
 def test_load_model_missing_file_gives_clear_error(tmp_path):
     with pytest.raises(FileNotFoundError, match="Run `uv run spotcast` first"):
-        load_model(WINDSURF_INTERMEDIATE, models_dir=tmp_path)
+        load_model(models_dir=tmp_path)
+
+
+def test_model_with_old_features_is_refused():
+    old = {"model": AlwaysGoodModel(), "features": ["wind_speed_10m", "wave_height"]}
+    with pytest.raises(ValueError, match="different features"):
+        predict_conditions(
+            old, make_conditions([(18, 0.5, True)]), WINDSURF_INTERMEDIATE
+        )
 
 
 def test_predict_conditions_applies_guardrail():
-    bundle = {
-        "model": AlwaysGoodModel(),
-        "features": FEATURES,
-        "profile": WINDSURF_INTERMEDIATE,
-    }
+    bundle = {"model": AlwaysGoodModel(), "features": FEATURES}
     forecast = make_conditions([(18, 0.5, True), (40, 0.5, True)])
     forecast["spot"] = "Alaçatı"
 
-    result = predict_conditions(bundle, forecast)
+    result = predict_conditions(bundle, forecast, WINDSURF_INTERMEDIATE)
 
     assert list(result["prediction"]) == ["good", "bad"]
     assert "prediction" not in forecast.columns  # input is untouched

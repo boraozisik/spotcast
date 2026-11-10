@@ -35,6 +35,7 @@ spotcast-mcp = "spotcast.mcp_server:main"
 spotcast-eval = "spotcast.evals.run:main"
 spotcast-publish = "spotcast.publish:main"
 spotcast-retrain = "spotcast.retrain:main"
+spotcast-sync-locations = "spotcast.locations:main"
 
 [build-system]
 requires = ["uv_build>=0.13.5,<0.14.0"]

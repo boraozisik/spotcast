@@ -6,7 +6,13 @@ from datetime import datetime
 import pytest
 
 from spotcast import agent
-from spotcast.agent import UserProfile, read_profile, run_agent, schema_for_llm
+from spotcast.agent import (
+    UserProfile,
+    decide_profile,
+    read_profile,
+    run_agent,
+    schema_for_llm,
+)
 from spotcast.tools import TOOLS_BY_NAME, ProfileArgs
 
 NOW = datetime(2026, 11, 5, 8, 0)  # Thursday
@@ -90,16 +96,41 @@ def test_the_loop_stops_after_max_steps():
     assert len(result.steps) == 3
 
 
-def test_unsupported_level_is_answered_by_code_without_the_agent():
+def test_unsupported_activity_is_answered_by_code_without_the_agent():
     llm = scripted_llm()  # would fail if it were called
 
     result = run_agent(
-        "Yeni başlıyorum", now=NOW, llm=llm, profile_reader=reads(level="beginner")
+        "Yarın dalışa gideceğim", now=NOW, llm=llm, profile_reader=reads(sport="other")
     )
 
     assert "henüz öneri veremiyorum" in result.answer
-    assert "orta seviye" in result.answer  # says what IS supported
+    assert "kano" in result.answer  # says what IS supported
     assert llm.seen == []  # the agent never ran
+
+
+@pytest.mark.parametrize(
+    ("sport", "level", "expected"),
+    [
+        ("unknown", "beginner", "Sporunu belirtmediğin için"),
+        ("sup", "unknown", "Seviyeni belirtmediğin için"),
+        ("unknown", "unknown", "Sporunu ve seviyeni belirtmediğin için"),
+    ],
+)
+def test_code_says_which_assumption_it_made(sport, level, expected):
+    who = decide_profile(UserProfile(sport=sport, level=level))
+    assert who.refusal is None
+    assert expected in who.level_note
+
+
+def test_beginner_is_supported_now(monkeypatch):
+    fake = use_fake(monkeypatch, "recommend_spots", {"windows_best_first": []})
+    llm = scripted_llm(tool_call("recommend_spots"), answer("Tamam."))
+
+    run_agent(
+        "Yeni başlıyorum", now=NOW, llm=llm, profile_reader=reads(level="beginner")
+    )
+
+    assert fake.received["level"] == "beginner"
 
 
 def test_llm_cannot_change_the_level(monkeypatch):
@@ -126,7 +157,7 @@ def test_unknown_level_adds_a_note_and_the_caution(monkeypatch):
         "Nereye gideyim?", now=NOW, llm=llm, profile_reader=reads(level="unknown")
     )
 
-    assert "orta seviye içindir" in result.answer
+    assert "orta seviye rüzgâr sörfü içindir" in result.answer
     assert "kendin kontrol et" in result.answer
 
 
@@ -173,6 +204,13 @@ def test_knowledge_answer_quotes_the_source_word_for_word(monkeypatch):
         ("Rüzgar sörfü, orta seviyedeyim", "windsurf", "intermediate"),
         ("İlk kez deneyeceğim, windsurf için Akyaka nasıl?", "windsurf", "beginner"),
         ("Kite için ileri seviye biri olarak soruyorum", "kitesurf", "advanced"),
+        ("Kano ile yeni başlayan biriyim", "kayak", "beginner"),
+        ("Ayakta kürek sörfü, orta seviye", "sup", "intermediate"),
+        ("Kayak tatili için orta seviyeyim", None, "intermediate"),  # kayak = skiing
+        # Once read as "unknown": "yeni başla" did not match "başlıyorum"
+        ("Yarın Akyaka'da SUP yapmak istiyorum, yeni başlıyorum", "sup", "beginner"),
+        # Once read as SUP by the LLM: not a sport we have limits for
+        ("Hafta sonu Kaş'ta dalış yapacağım, ileri seviyeyim", "other", "advanced"),
     ],
 )
 def test_known_words_are_read_by_code(question, sport, level):
@@ -184,8 +222,100 @@ def test_known_words_are_read_by_code(question, sport, level):
 
     profile = read_profile(question, ask=fake_llm)
 
-    assert profile.sport == sport
+    assert profile.sport == (sport or "unknown")
     assert profile.level == (level or "unknown")
-    assert bool(calls) == (
-        level is None
-    )  # the LLM is only asked for what code can't read
+    # The LLM is only asked when code can't read something
+    assert bool(calls) == (sport is None or level is None)
+
+
+def test_nearby_answers_get_distances_and_guide_notes_from_code(monkeypatch):
+    windows = [
+        {"spot": "Seferihisar Sığacık", "distance_km": 39, "local_guide": False},
+        {"spot": "Alaçatı", "distance_km": 69, "local_guide": True},
+    ]
+    use_fake(monkeypatch, "recommend_near", {"windows_best_first": windows})
+    izmir = {"name": "İzmir", "region": "İzmir", "latitude": 38.41, "longitude": 27.14}
+    use_fake(monkeypatch, "find_location", {"places": [izmir]})
+    llm = scripted_llm(
+        tool_call("find_location", name="İzmir"),
+        tool_call("recommend_near", latitude=38.41, longitude=27.14),
+        answer("Her iki yerde de yerel rehber var."),  # the mistake an LLM once made
+    )
+
+    result = run_agent(
+        "İzmir'deyim, nereye gideyim?", now=NOW, llm=llm, profile_reader=reads()
+    )
+
+    assert "Kuş uçuşu mesafe: Seferihisar Sığacık 39 km, Alaçatı 69 km" in result.answer
+    assert "Seferihisar Sığacık için yerel rehberimiz yok" in result.answer
+    assert "Alaçatı için" not in result.answer  # it has a guide
+
+
+def test_guessed_coordinates_are_sent_back(monkeypatch):
+    """Once the LLM skipped find_location and made up coordinates for Akyaka."""
+    fake = use_fake(monkeypatch, "check_conditions", {"label_counts": {}})
+    llm = scripted_llm(
+        tool_call(
+            "check_conditions", latitude=36.58, longitude=27.12, day="2026-11-06"
+        ),
+        answer("Bilemiyorum."),
+    )
+
+    result = run_agent("Yarın Akyaka?", now=NOW, llm=llm, profile_reader=reads())
+
+    assert "never guess coordinates" in result.steps[0].result["error"]
+    assert fake.received is None  # the tool never ran
+
+
+@pytest.mark.parametrize(
+    ("question", "expected"),
+    [
+        ("Yarın Akyaka?", {"2026-11-06"}),  # NOW is Thursday 5 November
+        ("Cumartesi Mersin?", {"2026-11-07"}),
+        ("Pazar günü nasıl?", {"2026-11-08"}),
+        ("Pazartesi?", {"2026-11-09"}),
+        ("Bu hafta sonu nereye?", {"2026-11-07", "2026-11-08"}),
+        ("Dip akıntısı nedir?", set()),
+    ],
+)
+def test_days_the_user_named(question, expected):
+    assert {f"{d:%Y-%m-%d}" for d in agent.days_mentioned(question, NOW)} == expected
+
+
+def test_wrong_day_is_sent_back_with_the_right_one(monkeypatch):
+    """Once "yarın" was sent as a Saturday."""
+    use_fake(monkeypatch, "check_conditions", {"label_counts": {}})
+    akyaka = {"latitude": 37.0471, "longitude": 28.3071}
+    llm = scripted_llm(
+        tool_call("check_conditions", day="2026-11-07", **akyaka), answer(".")
+    )
+
+    result = run_agent("Yarın Akyaka?", now=NOW, llm=llm, profile_reader=reads())
+
+    assert (
+        "asked about 2026-11-06, but you sent 2026-11-07"
+        in result.steps[0].result["error"]
+    )
+
+
+def test_offshore_is_explained_by_code(monkeypatch):
+    use_fake(
+        monkeypatch,
+        "check_conditions",
+        {
+            "label_counts": {"good": 3},
+            "offshore_hours": 4,
+            "sheltered_offshore_hours": 0,
+        },
+    )
+    akyaka = {"latitude": 37.0471, "longitude": 28.3071}
+    llm = scripted_llm(
+        tool_call("check_conditions", day="2026-11-06", **akyaka),
+        answer(
+            "Denizden içeri esen rüzgâr var."
+        ),  # wrong way round, as an LLM once wrote
+    )
+
+    result = run_agent("Yarın Akyaka?", now=NOW, llm=llm, profile_reader=reads())
+
+    assert "4 saatte rüzgâr karadan denize esiyor (offshore)" in result.answer

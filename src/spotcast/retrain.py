@@ -26,22 +26,25 @@ from typing import Any
 
 import pandas as pd
 
-from spotcast.config import HISTORY_END, HISTORY_START, MODELS_DIR, SPOTS
+from spotcast.config import HISTORY_END, HISTORY_START, MODELS_DIR
 from spotcast.data import fetch_all_spots
 from spotcast.labels import add_labels, is_unsafe
+from spotcast.locations import TRAINING_LOCATIONS
 from spotcast.model import (
     FEATURES,
+    MONITORED_INPUTS,
     classification_scores,
     feature_ranges,
     load_model,
     predict_with_guardrail,
     save_model,
     train_tree,
+    training_table,
 )
-from spotcast.profiles import ActivityProfile, get_profile
+from spotcast.profiles import PROFILES, ActivityProfile
+from spotcast.shore import unsafe_offshore_flags
 from spotcast.versioning import code_version
 
-SPORT, LEVEL = "windsurf", "intermediate"
 SETTLE_DAYS = 7  # ERA5 history is final only after ~5 days; wait a week to be safe
 HOLDOUT_DAYS = 7  # the most recent days, kept out of training to judge both models
 TOLERANCE = 0.01  # a challenger may be this much worse (noise) and still be promoted
@@ -68,24 +71,36 @@ def holdout_window(champion_end: date, today: date) -> tuple[date, date] | None:
 
 
 def score(
-    model: Any, holdout: pd.DataFrame, profile: ActivityProfile
-) -> dict[str, float]:
-    """How the model does on the holdout as it is really used: with the guardrail.
-    unsafe_called_good counts dangerous hours called "good" and must be 0."""
-    predictions = predict_with_guardrail(model, holdout[FEATURES], profile)
-    scores = classification_scores(holdout["label"], predictions)
-    unsafe = [
-        is_unsafe(profile, w, h, d)
-        for w, h, d in zip(
-            holdout["wind_speed_10m"],
-            holdout["wave_height"],
-            holdout["is_day"],
-            strict=True,
+    model: Any, holdout: pd.DataFrame, profiles: list[ActivityProfile]
+) -> dict[str, Any]:
+    """How the model does on the holdout hours for every profile, as it is really used:
+    with the guardrail. unsafe_called_good counts dangerous hours called "good" (any
+    profile) and must be 0. per_profile shows a model that is bad for one sport only."""
+    labels, predictions, per_profile, unsafe_good = [], [], {}, 0
+    for profile in profiles:
+        truth = add_labels(holdout, profile)["label"].tolist()
+        predicted = predict_with_guardrail(model, holdout, profile)
+        unsafe = [
+            is_unsafe(profile, w, h, d, off)
+            for w, h, d, off in zip(
+                holdout["wind_speed_10m"],
+                holdout["wave_height"],
+                holdout["is_day"],
+                unsafe_offshore_flags(holdout),
+                strict=True,
+            )
+        ]
+        unsafe_good += sum(
+            u and p == "good" for u, p in zip(unsafe, predicted, strict=True)
         )
-    ]
-    scores["unsafe_called_good"] = sum(
-        u and p == "good" for u, p in zip(unsafe, predictions, strict=True)
-    )
+        per_profile[profile.name] = round(
+            classification_scores(pd.Series(truth), predicted)["macro_f1"], 3
+        )
+        labels += truth
+        predictions += predicted
+    scores: dict[str, Any] = classification_scores(pd.Series(labels), predictions)
+    scores["unsafe_called_good"] = unsafe_good
+    scores["per_profile_macro_f1"] = per_profile
     return scores
 
 
@@ -108,18 +123,22 @@ def decide(champion: dict[str, float] | None, challenger: dict[str, float]) -> D
     )
 
 
-def _champion(
-    models_dir: Path, profile: ActivityProfile
-) -> tuple[dict | None, date, int]:
-    """The current model, the last day it was trained on, and its version number."""
-    try:
-        bundle = load_model(profile, models_dir)
-    except FileNotFoundError:
-        return None, HISTORY_START - timedelta(days=1), 0
-    end = bundle.get("train_end")  # older models didn't record it
+def _champion(models_dir: Path) -> tuple[dict | None, date, int]:
+    """The current model, the last day it was trained on, and its version number.
+
+    A model in an older format (one per profile, before Stage 11) cannot be compared, so
+    it counts as no champion; its version number still continues.
+    """
     card = models_dir / CARD
-    version = json.loads(card.read_text())["version"] if card.exists() else 1
-    return bundle, date.fromisoformat(end) if end else HISTORY_END, version
+    version = json.loads(card.read_text())["version"] if card.exists() else 0
+    try:
+        bundle = load_model(models_dir)
+    except FileNotFoundError:
+        bundle = None
+    if bundle is None or bundle["features"] != FEATURES:
+        return None, HISTORY_START - timedelta(days=1), version
+    end = bundle.get("train_end")  # older models didn't record it
+    return bundle, date.fromisoformat(end) if end else HISTORY_END, max(version, 1)
 
 
 def retrain(
@@ -129,8 +148,8 @@ def retrain(
     fetch=fetch_all_spots,
 ) -> dict[str, Any]:
     """Run one champion/challenger round. Writes the report, and the new model if promoted."""
-    profile = get_profile(SPORT, LEVEL)
-    champion, champion_end, version = _champion(models_dir, profile)
+    profiles = list(PROFILES.values())
+    champion, champion_end, version = _champion(models_dir)
     report: dict[str, Any] = {
         "checked_at": f"{datetime.now():%Y-%m-%dT%H:%M}",
         "champion_version": version or None,
@@ -148,13 +167,14 @@ def retrain(
         return report
     start, end = window
 
-    labeled = add_labels(fetch(SPOTS, HISTORY_START, end), profile)
-    day = labeled["time"].dt.date
-    train, holdout = labeled[day < start], labeled[day >= start]
+    history = fetch(TRAINING_LOCATIONS, HISTORY_START, end)
+    day = history["time"].dt.date
+    train, holdout = history[day < start], history[day >= start]
+    table = training_table(train, profiles)
 
-    challenger = train_tree(train[FEATURES], train["label"])
-    challenger_scores = score(challenger, holdout, profile)
-    champion_scores = score(champion["model"], holdout, profile) if champion else None
+    challenger = train_tree(table[FEATURES], table["label"])
+    challenger_scores = score(challenger, holdout, profiles)
+    champion_scores = score(champion["model"], holdout, profiles) if champion else None
     decision = decide(champion_scores, challenger_scores)
     report |= {
         "holdout": [start.isoformat(), end.isoformat()],
@@ -169,19 +189,18 @@ def retrain(
         train_end = start - timedelta(days=1)
         save_model(
             challenger,
-            profile,
+            profiles,
             sorted(train["time"].dt.year.unique().tolist()),
             models_dir=out,
-            ranges=feature_ranges(train[FEATURES]),
+            ranges=feature_ranges(train[MONITORED_INPUTS]),
             train_end=train_end,
         )
         card = {
             "version": version + 1,
-            "sport": profile.sport,
-            "level": profile.level,
+            "profiles": [p.name for p in profiles],
             "train_start": HISTORY_START.isoformat(),
             "train_end": train_end.isoformat(),
-            "train_rows": len(train),
+            "train_rows": len(table),
             "holdout": report["holdout"],
             "holdout_scores": challenger_scores,
             "replaced_version": version or None,

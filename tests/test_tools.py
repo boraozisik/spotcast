@@ -8,7 +8,6 @@ import pytest
 
 from spotcast import tools
 from spotcast.model import FEATURES
-from spotcast.profiles import WINDSURF_INTERMEDIATE
 
 TODAY = datetime(2026, 11, 5, 8, 0)  # a Thursday morning
 
@@ -22,12 +21,8 @@ class AlwaysGoodModel:
 def fixed_clock_and_model(monkeypatch):
     """Every test runs at the same time, with a fake model instead of a file on disk."""
     monkeypatch.setattr(tools, "now", lambda: TODAY)
-    bundle = {
-        "model": AlwaysGoodModel(),
-        "features": FEATURES,
-        "profile": WINDSURF_INTERMEDIATE,
-    }
-    monkeypatch.setattr(tools, "_bundle", lambda sport, level: bundle)
+    bundle = {"model": AlwaysGoodModel(), "features": FEATURES}
+    monkeypatch.setattr(tools, "_bundle", lambda: bundle)
 
 
 def fake_forecast(latitude, longitude, waves=True):
@@ -68,7 +63,7 @@ def test_day_outside_the_forecast_is_refused():
 
 def test_unsupported_level_is_refused_by_the_schema():
     result = tools.TOOLS_BY_NAME["check_conditions"].call(
-        {"latitude": 36.8, "longitude": 34.6, "day": "2026-11-07", "level": "beginner"}
+        {"latitude": 36.8, "longitude": 34.6, "day": "2026-11-07", "level": "expert"}
     )
     # The schema only allows levels we have a profile for, and says which one
     assert "Invalid arguments" in result["error"]
@@ -108,11 +103,12 @@ def test_no_wave_data_means_no_verdict(monkeypatch):
 
 def test_far_ahead_day_gets_a_lead_time_warning(monkeypatch):
     monkeypatch.setattr(tools, "fetch_conditions", fake_forecast)
+    # Alaçatı itself: a known shore direction, so no "unknown shore" warning
     near = tools.check_conditions(
-        tools.CheckConditionsArgs(latitude=38.3, longitude=26.4, day="2026-11-07")
+        tools.CheckConditionsArgs(latitude=38.243, longitude=26.38, day="2026-11-07")
     )
     far = tools.check_conditions(
-        tools.CheckConditionsArgs(latitude=38.3, longitude=26.4, day="2026-11-10")
+        tools.CheckConditionsArgs(latitude=38.243, longitude=26.38, day="2026-11-10")
     )
 
     assert near["days_ahead"] == 2 and near["warnings"] == []
@@ -150,14 +146,137 @@ def test_turkish_words_from_the_llm_are_accepted():
     assert (args.sport, args.level) == ("windsurf", "intermediate")
 
 
-def test_beginner_is_understood_but_not_supported_yet():
-    result = tools.TOOLS_BY_NAME["recommend_spots"].call({"level": "yeni başlayan"})
-    assert (
-        "Invalid arguments" in result["error"]
-    )  # mapped to "beginner", which has no profile
+def test_turkish_words_are_mapped_to_profiles():
+    args = tools.RecommendSpotsArgs(sport="Kano", level="yeni başlayan")
+    assert (args.sport, args.level) == ("kayak", "beginner")
 
 
 @pytest.mark.parametrize("value", ["null", "None", "", None])
 def test_search_knowledge_treats_null_text_as_no_spot(value):
     args = tools.SearchKnowledgeArgs(question="offshore", spot=value)
     assert args.spot is None
+
+
+# ---------- recommend_near: "I live in Izmir, where should I go?" ----------
+
+IZMIR = (38.42, 27.14)
+
+
+def fake_all_spots(locations):
+    """Every place gets the same weather, plus the columns fetch_all_spots adds."""
+    frames = []
+    for loc in locations:
+        df = fake_forecast(loc.latitude, loc.longitude)
+        df.insert(0, "spot", loc.name)
+        df["shore_facing"], df["sheltered"] = loc.shore_facing, loc.sheltered
+        frames.append(df)
+    return pd.concat(frames, ignore_index=True)
+
+
+def test_locations_within_are_nearest_first_and_respect_sports():
+    from spotcast.locations import locations_within
+
+    near = locations_within(*IZMIR, radius_km=80)
+    distances = [km for _, km in near]
+    assert distances == sorted(distances) and all(km <= 80 for km in distances)
+    assert "Alaçatı" in [loc.name for loc, _ in near]
+    # Alaçatı's guide doesn't list kayak, so it is left out for kayak
+    kayak = [loc.name for loc, _ in locations_within(*IZMIR, 80, sport="kayak")]
+    assert "Alaçatı" not in kayak and kayak
+
+
+def test_recommend_near_checks_places_around_the_user(monkeypatch):
+    monkeypatch.setattr(tools, "fetch_all_spots", fake_all_spots)
+    result = tools.TOOLS_BY_NAME["recommend_near"].call(
+        {
+            "latitude": IZMIR[0],
+            "longitude": IZMIR[1],
+            "radius_km": 80,
+            "day": "2026-11-07",
+        }
+    )
+
+    assert "straight-line" in result["distance"]
+    checked = result["places_checked"]
+    assert len(checked) <= tools.MAX_NEARBY
+    assert all(p["distance_km"] <= 80 for p in checked)
+    best = result["windows_best_first"][0]
+    assert {"distance_km", "region", "local_guide"} <= set(best)
+    if not best["local_guide"]:
+        assert any("No local guide" in w for w in best["warnings"])
+
+
+def test_recommend_near_says_how_far_the_nearest_place_is():
+    result = tools.TOOLS_BY_NAME["recommend_near"].call(
+        {"latitude": 39.93, "longitude": 32.85, "radius_km": 50}  # Ankara
+    )
+    assert "No known place for windsurf within 50 km" in result["error"]
+    assert "The nearest is" in result["error"]
+
+
+def test_weather_service_failure_is_a_readable_error(monkeypatch):
+    def offline(*args, **kwargs):
+        raise tools.requests.ConnectionError("no network")
+
+    monkeypatch.setattr(tools, "fetch_all_spots", offline)
+    result = tools.TOOLS_BY_NAME["recommend_near"].call(
+        {"latitude": IZMIR[0], "longitude": IZMIR[1]}
+    )
+    assert "weather service did not answer" in result["error"]
+
+
+def test_find_location_puts_our_own_place_first(monkeypatch):
+    """Turkey has many villages called Akyaka; the geocoder listed three inland ones."""
+
+    class Answer:
+        def raise_for_status(self):
+            pass
+
+        def json(self):
+            return {
+                "results": [
+                    {
+                        "name": "Akyaka",
+                        "admin1": "Kars",
+                        "latitude": 40.74,
+                        "longitude": 43.61,
+                    },
+                    {
+                        "name": "Akyaka",
+                        "admin1": "Muğla",
+                        "latitude": 37.05,
+                        "longitude": 28.33,
+                    },
+                ]
+            }
+
+    monkeypatch.setattr(tools.requests, "get", lambda *a, **k: Answer())
+    places = tools.TOOLS_BY_NAME["find_location"].call({"name": "akyaka"})["places"]
+
+    assert places[0]["name"] == "Akyaka" and places[0]["known_spot"]
+    assert places[0]["region"] == "Muğla"
+    assert [p["region"] for p in places[1:]] == ["Kars"]  # Muğla's duplicate is dropped
+
+
+def test_town_centre_points_to_our_place_on_the_water(monkeypatch):
+    class Answer:
+        def raise_for_status(self):
+            pass
+
+        def json(self):
+            return {
+                "results": [
+                    {
+                        "name": "Mersin",
+                        "admin1": "Mersin",
+                        "latitude": 36.81,
+                        "longitude": 34.64,
+                    }
+                ]
+            }
+
+    monkeypatch.setattr(tools.requests, "get", lambda *a, **k: Answer())
+    [mersin] = tools.TOOLS_BY_NAME["find_location"].call({"name": "Mersin"})["places"]
+
+    assert mersin["coastal_place_nearby"]["name"] == "Mezitli sahili"
+    assert mersin["coastal_place_nearby"]["distance_km"] <= tools.COASTAL_NEARBY_KM

@@ -12,6 +12,7 @@ from datetime import date, datetime
 
 import pandas as pd
 
+from spotcast.locations import LOCATIONS
 from spotcast.profiles import ActivityProfile
 
 # How much one hour is worth. "bad" hours are never part of a window.
@@ -43,9 +44,9 @@ def hour_score(prediction: str, wind_kn: float, profile: ActivityProfile) -> flo
     The bonus (0..1) is always smaller than the gap between labels (1 point), so a
     "marginal" hour can never beat a "good" one just by having nicer wind.
     """
-    ideal = (profile.good_wind_min_kn + profile.good_wind_max_kn) / 2
-    half_width = (profile.good_wind_max_kn - profile.good_wind_min_kn) / 2
-    closeness = max(0.0, 1 - abs(wind_kn - ideal) / (half_width * 2))
+    # SUP and kayak: ideal 0 kn, so calmer hours score higher
+    width = max(profile.good_wind_max_kn - profile.good_wind_min_kn, 1.0)
+    closeness = max(0.0, 1 - abs(wind_kn - profile.ideal_wind) / width)
     return LABEL_POINTS[prediction] + 0.99 * closeness
 
 
@@ -105,7 +106,12 @@ def recommend(
     prefs: Preferences,
     top: int = 5,
 ) -> pd.DataFrame:
-    """The best windows, highest total score first (more and better hours win)."""
+    """The best windows, highest total score first (more and better hours win).
+
+    Known spots where this sport isn't done (locations.toml `sports`) are left out.
+    """
+    not_for_sport = {loc.name for loc in LOCATIONS if not loc.supports(profile.sport)}
+    predicted = predicted[~predicted["spot"].isin(not_for_sport)]
     windows = find_windows(predicted, profile, prefs)
     return windows.sort_values(["score", "start"], ascending=[False, True]).head(top)
 

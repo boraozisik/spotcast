@@ -12,9 +12,9 @@ const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin", "lat
 const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin", "latin-ext"] });
 
 export const metadata: Metadata = {
-  title: "SpotCast · AI-powered windsurf forecasts",
+  title: "SpotCast · AI-powered water sports forecasts",
   description:
-    "Is this spot right for my level, at this hour? SpotCast evaluates wind and wave forecasts along the Turkish coast with a machine learning model and strict safety rules.",
+    "Is this spot right for my level, at this hour? SpotCast evaluates wind and wave forecasts for windsurf, kitesurf, SUP and sea kayak along the Turkish coast with a machine learning model and strict safety rules.",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

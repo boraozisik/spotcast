@@ -19,20 +19,17 @@ class AlwaysGoodModel:
         return np.array(["good"] * len(X))
 
 
-BUNDLE = {
-    "model": AlwaysGoodModel(),
-    "features": FEATURES,
-    "profile": WINDSURF_INTERMEDIATE,
-}
+BUNDLE = {"model": AlwaysGoodModel(), "features": FEATURES}
 
 
-def forecast(days=7, waves=True):
+def forecast(days=7, waves=True, wind_from=180):
     hours = pd.date_range("2026-11-05 00:00", periods=days * 24, freq="h")
     return pd.DataFrame(
         {
             "time": hours,
             "wind_speed_10m": 18.0,
-            "wind_direction_10m": 0,
+            # From the south: onshore at Mezitli (faces 160), so no offshore rule applies
+            "wind_direction_10m": wind_from,
             "is_day": hours.hour.isin(range(7, 18)),
             "wave_height": 0.5 if waves else np.nan,
             "wave_direction": 0,
@@ -48,6 +45,17 @@ def test_slug_is_safe_for_urls():
 
 def test_local_now_has_no_timezone_like_the_forecast():
     assert publish.local_now().tzinfo is None
+
+
+def test_offshore_wind_makes_every_hour_bad():
+    """At Mezitli (faces south) a northerly wind blows from the land out to sea: 18 kn is
+    above the 12 kn offshore limit of an intermediate windsurfer."""
+    place = publish.build_place(
+        "Mezitli sahili", "Mersin", 36.7341, 34.5304,
+        forecast(wind_from=0), WINDSURF_INTERMEDIATE, BUNDLE, NOW,
+    )  # fmt: skip
+    assert all(day["best_window"] is None for day in place["days"])
+    assert all(set(day["label_counts"]) == {"bad"} for day in place["days"])
 
 
 def test_place_has_seven_days_with_turkish_notes():
@@ -128,6 +136,8 @@ def test_fetch_retries_a_dropped_connection(monkeypatch):
     calls = []
 
     class Ok:
+        status_code = 200
+
         def raise_for_status(self):
             pass
 
@@ -177,3 +187,42 @@ def test_spot_hours_start_at_the_current_hour():
     spots = publish.build_spots(predicted, datetime(2026, 11, 5, 13, 30))
     alacati = next(s for s in spots if s["name"] == "Alaçatı")
     assert alacati["hours"][0]["time"] == "2026-11-05T13:00"
+
+
+def test_new_note_codes_and_the_legacy_filter():
+    alacati = publish.BY_NAME["Alaçatı"]  # no kayak in its guide
+    assessment = {
+        "label_counts": {"good": 3},
+        "local_guide_spot": "Alaçatı",
+        "shore_known": True,
+        "offshore_hours": 0,
+        "sheltered_offshore_hours": 4,
+        "days_ahead": 1,
+    }
+    kayak = publish.get_profile("kayak", "beginner")
+    notes = publish.site_notes(assessment, alacati, kayak)
+    assert {"code": "not_for_sport"} in notes
+    assert {"code": "sheltered_offshore", "hours": 4} in notes
+
+    # The first site version would show unknown codes as "no local guide": filter them
+    place = {"name": "Alaçatı", "days": [{"date": "2026-11-06", "notes": notes}]}
+    [legacy] = publish.legacy_places([place])
+    assert legacy["days"][0]["notes"] == []
+    assert place["days"][0]["notes"] == notes  # the new file keeps them
+
+
+def test_one_forecast_gives_different_verdicts_per_profile():
+    forecast_rows = forecast(days=2).assign(
+        spot="Alaçatı", shore_facing=120.0, sheltered=True
+    )
+    files = {
+        p: publish.build_profile(
+            publish.get_profile(*p), BUNDLE, forecast_rows, {}, NOW
+        )
+        for p in [("windsurf", "intermediate"), ("sup", "beginner")]
+    }
+    windsurf = files[("windsurf", "intermediate")]["places.json"][1]["days"][0]
+    sup = files[("sup", "beginner")]["places.json"][1]["days"][0]
+    # 18 kn: fine for an intermediate windsurfer, above the 10 kn limit of a beginner SUP
+    assert windsurf["label_counts"].get("good")
+    assert set(sup["label_counts"]) == {"bad"}

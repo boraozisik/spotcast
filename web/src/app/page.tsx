@@ -3,18 +3,22 @@
 import Link from "next/link";
 
 import { BestWindows } from "@/components/BestWindows";
+import { ProfilePicker } from "@/components/ProfilePicker";
 import { SpotForecast } from "@/components/SpotForecast";
 import { StaleNotice } from "@/components/StaleNotice";
 import { Caution, LoadError, Loading } from "@/components/ui";
-import { useSiteData } from "@/lib/data";
+import { useProfileData, useSiteData } from "@/lib/data";
 import { formatDateTime, useT } from "@/lib/i18n";
+import { DEFAULT_PROFILE, profileLimits, useProfileId } from "@/lib/profile";
 import type { Meta, Recommendations, Spot } from "@/lib/types";
 
 export default function Home() {
   const { lang, t } = useT();
+  const profileId = useProfileId();
   const meta = useSiteData<Meta>("meta.json");
-  const recommendations = useSiteData<Recommendations>("recommendations.json");
-  const spots = useSiteData<Spot[]>("spots.json");
+  const defaultId = meta.status === "ready" ? (meta.data.default_profile ?? DEFAULT_PROFILE) : DEFAULT_PROFILE;
+  const recommendations = useProfileData<Recommendations>("recommendations.json", profileId, defaultId);
+  const spots = useProfileData<Spot[]>("spots.json", profileId, defaultId);
 
   const failed = [meta, recommendations, spots].find((s) => s.status === "error");
 
@@ -42,6 +46,8 @@ export default function Home() {
         )}
       </section>
 
+      <ProfilePicker />
+
       {failed?.status === "error" ? (
         <LoadError message={failed.message} />
       ) : meta.status !== "ready" || recommendations.status !== "ready" || spots.status !== "ready" ? (
@@ -54,11 +60,23 @@ export default function Home() {
           <section>
             <h2 className="text-xl font-semibold text-slate-900">{t.home.spots.title}</h2>
             <p className="mb-4 text-sm text-slate-500">
-              {t.home.spots.text(meta.data.profile.good_wind_min_kn, meta.data.profile.good_wind_max_kn)}
+              {(() => {
+                const limits = profileLimits(meta.data, profileId);
+                return t.home.spots.text(
+                  limits.good_wind_min_kn,
+                  limits.good_wind_max_kn,
+                  t.profileName(t.sports[limits.sport], t.levels[limits.level]),
+                );
+              })()}
             </p>
             <div className="grid gap-4 lg:grid-cols-3">
               {spots.data.map((spot) => (
-                <SpotForecast key={spot.slug} spot={spot} meta={meta.data} />
+                <SpotForecast
+                  key={spot.slug}
+                  spot={spot}
+                  limits={profileLimits(meta.data, profileId)}
+                  info={meta.data.spots?.find((s) => s.name === spot.name)}
+                />
               ))}
             </div>
           </section>

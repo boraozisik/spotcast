@@ -139,4 +139,44 @@ export const issuesFound: { title: Text; fix: Text }[] = [
       tr: "Fotoğraftan yapılan tahminler kararlarda kullanılmıyor.",
     },
   },
+  {
+    title: {
+      en: "15 of 29 forecast points were on land (one on a 76 m hill), unnoticed because the wave model still returned data",
+      tr: "29 tahmin noktasının 15'i karadaydı (biri 76 m'lik bir tepede); dalga modeli yine de veri verdiği için fark edilmemişti",
+    },
+    fix: {
+      en: "Every point was checked against the OpenStreetMap coastline and moved onto the water; a script now does this check for new places.",
+      tr: "Her nokta OpenStreetMap kıyı çizgisiyle kontrol edilip denize taşındı; yeni yerler için bu kontrolü artık bir betik yapıyor.",
+    },
+  },
+  {
+    title: {
+      en: "The agent said \"both places have a local guide\" when the best one had none",
+      tr: "Ajan, en iyi yerin rehberi yokken \"iki yerde de yerel rehber var\" dedi",
+    },
+    fix: {
+      en: "Distances and the \"no local guide\" note are now written by code under every answer; a new test case checks for the mistake.",
+      tr: "Mesafeler ve \"yerel rehber yok\" notu artık her cevabın altına kod tarafından yazılıyor; yeni bir test vakası bu hatayı arıyor.",
+    },
+  },
+  {
+    title: {
+      en: "Adding the offshore rule dropped the model to macro F1 0.933 (0.78 for advanced SUP)",
+      tr: "Offshore kuralı eklenince model macro F1 0.933'e düştü (ileri seviye SUP'ta 0.78)",
+    },
+    fix: {
+      en: "Tree depth was chosen by measurement: depth 7 reaches 1.000 with only 10 leaves.",
+      tr: "Ağaç derinliği ölçülerek seçildi: derinlik 7 sadece 10 yaprakla 1.000'e ulaşıyor.",
+    },
+  },
+  {
+    title: {
+      en: "Data drift: Black Sea and Mediterranean wave periods were outside the training range every run",
+      tr: "Veri kayması: Karadeniz ve Akdeniz'deki dalga periyotları her çalıştırmada eğitim aralığının dışındaydı",
+    },
+    fix: {
+      en: "The model now trains on one place per sea as well: hours outside the training range went from 8-10 to 0.",
+      tr: "Model artık her denizden bir yerle de eğitiliyor: eğitim aralığı dışındaki saatler 8-10'dan 0'a indi.",
+    },
+  },
 ];

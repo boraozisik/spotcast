@@ -21,19 +21,31 @@ import pandas as pd
 import requests
 from pydantic import BaseModel, Field, ValidationError, field_validator
 
-from spotcast.config import REQUEST_TIMEOUT_SECONDS, SPOTS, Spot
+from spotcast.config import REQUEST_TIMEOUT_SECONDS
 from spotcast.data import fetch_all_spots, fetch_conditions
 from spotcast.explain import turkish_date
+from spotcast.locations import (
+    SPOTS,
+    Location,
+    distance_km,
+    location_near,
+    locations_within,
+    named,
+)
 from spotcast.model import load_model, predict_conditions
 from spotcast.profiles import PROFILES, ActivityProfile, get_profile
 from spotcast.recommend import Preferences, find_windows, recommend
+from spotcast.shore import offshore_flags, shore_wind
 from spotcast.uncertainty import days_ahead, lead_time_note
 
 # Only the sports and levels we have profiles for. In the schema these become a list of
 # allowed values (an enum), so the LLM can't send "rüzgâr sörfü" or "orta".
 Sport = Literal[tuple(sorted({sport for sport, _ in PROFILES}))]
 Level = Literal[tuple(sorted({level for _, level in PROFILES}))]
-SPORT_HELP = "windsurf = rüzgâr sörfü"
+SPORT_HELP = (
+    "windsurf = rüzgâr sörfü, kitesurf = uçurtma sörfü, sup = SUP / ayakta kürek sörfü, "
+    "kayak = kano"
+)
 LEVEL_HELP = (
     "yeni başlayan = beginner, orta = intermediate, ileri = advanced. "
     "Only the allowed values are supported."
@@ -44,6 +56,12 @@ SPORT_ALIASES = {
     "rüzgâr sörfü": "windsurf",
     "rüzgar sörfü": "windsurf",
     "sörf": "windsurf",
+    "uçurtma sörfü": "kitesurf",
+    "kite": "kitesurf",
+    "kürek sörfü": "sup",
+    "ayakta kürek sörfü": "sup",
+    "kano": "kayak",
+    "deniz kanosu": "kayak",
 }
 LEVEL_ALIASES = {
     "yeni başlayan": "beginner",
@@ -120,6 +138,8 @@ class Tool:
             return self.run(parsed)
         except ToolError as error:
             return {"error": str(error)}
+        except requests.RequestException:
+            return {"error": "The weather service did not answer. Try again later."}
 
 
 # ---------- Shared helpers ----------
@@ -131,9 +151,9 @@ def now() -> datetime:
 
 
 @lru_cache
-def _bundle(sport: str, level: str) -> dict:
-    """Load each profile's model once, not on every tool call."""
-    return load_model(get_profile(sport, level))
+def _bundle() -> dict:
+    """Load the model (one for all profiles) once, not on every tool call."""
+    return load_model()
 
 
 def _profile(sport: str, level: str) -> ActivityProfile:
@@ -143,16 +163,7 @@ def _profile(sport: str, level: str) -> ActivityProfile:
         raise ToolError(str(error)) from None
 
 
-def distance_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
-    """Straight-line distance on the Earth's surface (haversine formula)."""
-    r = 6371.0
-    p1, p2 = math.radians(lat1), math.radians(lat2)
-    dp, dl = p2 - p1, math.radians(lon2 - lon1)
-    a = math.sin(dp / 2) ** 2 + math.cos(p1) * math.cos(p2) * math.sin(dl / 2) ** 2
-    return 2 * r * math.asin(math.sqrt(a))
-
-
-def nearest_spot(latitude: float, longitude: float) -> tuple[Spot, float]:
+def nearest_spot(latitude: float, longitude: float) -> tuple[Location, float]:
     spot = min(
         SPOTS, key=lambda s: distance_km(latitude, longitude, s.latitude, s.longitude)
     )
@@ -175,27 +186,57 @@ class FindLocationArgs(BaseModel):
     name: str = Field(description="Place name in Turkey, e.g. 'Mersin' or 'Alaçatı'")
 
 
+COASTAL_NEARBY_KM = 20  # a known place on the water this close to a geocoded result
+
+
 def find_location(args: FindLocationArgs) -> dict:
+    """SpotCast's own places with this name first (on the water, with shore data), then
+    the geocoder's results. Turkey has many villages called Akyaka: once the agent picked
+    the one in Kars because the windsurf spot in Muğla was not in the geocoder's top 3."""
+    known = [
+        {
+            "name": loc.name,
+            "region": loc.region,
+            "latitude": loc.latitude,
+            "longitude": loc.longitude,
+            "known_spot": True,
+        }
+        for loc in named(args.name)
+    ]
     response = requests.get(
         GEOCODING_URL,
-        params={"name": args.name, "count": 3, "language": "tr", "countryCode": "TR"},
+        params={"name": args.name, "count": 5, "language": "tr", "countryCode": "TR"},
         timeout=REQUEST_TIMEOUT_SECONDS,
     )
     response.raise_for_status()
-    results = response.json().get("results", [])
-    if not results:
-        raise ToolError(f"No place called '{args.name}' was found in Turkey.")
-    return {
-        "places": [
-            {
-                "name": r["name"],
-                "region": ", ".join(x for x in (r.get("admin2"), r.get("admin1")) if x),
-                "latitude": r["latitude"],
-                "longitude": r["longitude"],
+    geocoded = []
+    for r in response.json().get("results", []):
+        if any(
+            distance_km(r["latitude"], r["longitude"], k["latitude"], k["longitude"])
+            < 3
+            for k in known
+        ):
+            continue  # the same place as one of ours
+        place = {
+            "name": r["name"],
+            "region": ", ".join(x for x in (r.get("admin2"), r.get("admin1")) if x),
+            "latitude": r["latitude"],
+            "longitude": r["longitude"],
+        }
+        # A town centre is on land: point to our nearest place on the water, if close
+        nearby = locations_within(r["latitude"], r["longitude"], COASTAL_NEARBY_KM)
+        if nearby:
+            loc, km = nearby[0]
+            place["coastal_place_nearby"] = {
+                "name": loc.name,
+                "distance_km": round(km),
+                "latitude": loc.latitude,
+                "longitude": loc.longitude,
             }
-            for r in results
-        ]
-    }
+        geocoded.append(place)
+    if not known and not geocoded:
+        raise ToolError(f"No place called '{args.name}' was found in Turkey.")
+    return {"places": known + geocoded}
 
 
 # ---------- Tool 2: check_conditions (any place) ----------
@@ -219,7 +260,7 @@ def check_conditions(args: CheckConditionsArgs) -> dict:
         args.latitude,
         args.longitude,
         profile,
-        _bundle(profile.sport, profile.level),
+        _bundle(),
         now(),
     )
 
@@ -237,12 +278,18 @@ def assess_day(
     fetches a place once and assesses all 7 days with this."""
     hours = forecast[forecast["time"].dt.date == day].copy()
     hours.insert(0, "spot", "requested place")  # find_windows groups hours by spot
+    if "shore_facing" not in hours:  # known only at (or right next to) our locations
+        here = location_near(latitude, longitude)
+        facing = here.shore_facing if here else None
+        hours["shore_facing"] = float("nan") if facing is None else facing
+        hours["sheltered"] = bool(here and here.sheltered)
+    sheltered = "sheltered" in hours and bool(hours["sheltered"].any())
     has_waves = hours["wave_height"].notna()
 
     # The model needs wave height. Without it we report the wind but give no verdict.
     hours["prediction"] = "unknown"
     if has_waves.any():
-        known = predict_conditions(bundle, hours[has_waves])
+        known = predict_conditions(bundle, hours[has_waves], profile)
         hours.loc[has_waves, "prediction"] = known["prediction"]
 
     daylight = hours[hours["is_day"]]
@@ -256,6 +303,7 @@ def assess_day(
     best = windows.sort_values("score", ascending=False).head(1)
 
     spot, km = nearest_spot(latitude, longitude)
+    daylight_offshore = int(offshore_flags(daylight).sum())
     warnings = []
     if not has_waves.all():
         warnings.append(
@@ -264,6 +312,25 @@ def assess_day(
     if km > SPOT_GUIDE_RADIUS_KM:
         warnings.append(
             "SpotCast has no local guide for this place: check local dangers."
+        )
+    elif not spot.supports(profile.sport):
+        warnings.append(f"{spot.name} is not known as a place for {profile.sport}.")
+    if hours["shore_facing"].isna().all():
+        warnings.append(
+            "Unknown shore direction here: offshore wind (blowing from the land out to "
+            "sea, it pushes you away from the shore) could not be checked."
+        )
+    elif daylight_offshore and sheltered:
+        warnings.append(
+            f"Offshore wind (from the land) in {daylight_offshore} daylight hours. This is "
+            "a sheltered bay: if you drift, you reach another shore of the bay, not the "
+            "open sea, so these hours are not marked unsafe for that reason. Offshore wind "
+            "is still gusty and stronger further out: stay inside the bay."
+        )
+    elif daylight_offshore:
+        warnings.append(
+            f"Offshore wind (from the land out to sea) in {daylight_offshore} daylight "
+            "hours: it pushes you away from the shore."
         )
     ahead = days_ahead(day, current_time)
     if note := lead_time_note(ahead):
@@ -281,6 +348,7 @@ def assess_day(
                 "wave_metres": None
                 if pd.isna(row.wave_height)
                 else round(row.wave_height, 2),
+                "shore_wind": shore_wind(row.wind_direction_10m, row.shore_facing),
                 "label": row.prediction,
             }
             for row in daylight.itertuples()
@@ -294,6 +362,10 @@ def assess_day(
             "avg_wind_knots": round(float(best.iloc[0]["avg_wind_kn"]), 1),
         },
         "local_guide_spot": spot.name if km <= SPOT_GUIDE_RADIUS_KM else None,
+        # Offshore daylight hours: counted as a danger, or in a sheltered bay (explained)
+        "shore_known": not hours["shore_facing"].isna().all(),
+        "offshore_hours": 0 if sheltered else daylight_offshore,
+        "sheltered_offshore_hours": daylight_offshore if sheltered else 0,
         "warnings": warnings,
     }
 
@@ -308,48 +380,120 @@ def lead_time(start: datetime) -> dict:
     return {"days_ahead": ahead, "warnings": [note] if note else []}
 
 
-class RecommendSpotsArgs(ProfileArgs):
+class WhenArgs(ProfileArgs):
+    """When the user wants to go: shared by the two recommending tools."""
+
     day: date | None = Field(default=None, description="Only this day (YYYY-MM-DD)")
     weekend_only: bool = False
     earliest_hour: int = Field(default=9, ge=0, le=23)
     latest_hour: int = Field(default=18, ge=0, le=23)
 
+    def preferences(self) -> Preferences:
+        if self.day is not None:
+            _check_day(self.day)
+        return Preferences(
+            earliest_hour=self.earliest_hour,
+            latest_hour=self.latest_hour,
+            weekdays=frozenset({5, 6}) if self.weekend_only else None,
+            days=frozenset({self.day}) if self.day else None,
+            not_before=now(),
+        )
 
-def recommend_spots(args: RecommendSpotsArgs) -> dict:
-    profile = _profile(args.sport, args.level)
-    if args.day is not None:
-        _check_day(args.day)
 
-    predicted = predict_conditions(
-        _bundle(profile.sport, profile.level), fetch_all_spots(SPOTS)
-    )
-    prefs = Preferences(
-        earliest_hour=args.earliest_hour,
-        latest_hour=args.latest_hour,
-        weekdays=frozenset({5, 6}) if args.weekend_only else None,
-        days=frozenset({args.day}) if args.day else None,
-        not_before=now(),
-    )
-    best = recommend(predicted, profile, prefs, top=3)
+class RecommendSpotsArgs(WhenArgs):
+    pass
+
+
+def _window(row: pd.Series) -> dict:
     return {
-        "known_spots": [s.name for s in SPOTS],
-        "windows_best_first": [
-            {
-                "spot": row["spot"],
-                "day": turkish_date(row["start"]),
-                "hours": f"{row['start']:%H:%M}-{row['end']:%H:%M}",
-                "good_hours": int(row["good_hours"]),
-                "marginal_hours": int(row["hours"] - row["good_hours"]),
-                "avg_wind_knots": round(float(row["avg_wind_kn"]), 1),
-                "max_wave_metres": round(float(row["max_wave_m"]), 2),
-                **lead_time(row["start"]),
-            }
-            for _, row in best.iterrows()
-        ],
+        "spot": row["spot"],
+        "day": turkish_date(row["start"]),
+        "hours": f"{row['start']:%H:%M}-{row['end']:%H:%M}",
+        "good_hours": int(row["good_hours"]),
+        "marginal_hours": int(row["hours"] - row["good_hours"]),
+        "avg_wind_knots": round(float(row["avg_wind_kn"]), 1),
+        "max_wave_metres": round(float(row["max_wave_m"]), 2),
+        **lead_time(row["start"]),
     }
 
 
-# ---------- Tool 4: search_knowledge (RAG) ----------
+def recommend_spots(args: RecommendSpotsArgs) -> dict:
+    profile = _profile(args.sport, args.level)
+    prefs = args.preferences()
+    predicted = predict_conditions(_bundle(), fetch_all_spots(SPOTS), profile)
+    best = recommend(predicted, profile, prefs, top=3)
+    return {
+        "known_spots": [s.name for s in SPOTS],
+        "windows_best_first": [_window(row) for _, row in best.iterrows()],
+    }
+
+
+# ---------- Tool 4: recommend_near (all known places around a point) ----------
+
+MAX_NEARBY = 30  # all share one batched request (data.fetch_all_spots)
+
+
+class RecommendNearArgs(WhenArgs):
+    latitude: float = Field(ge=-90, le=90, description="Where the user starts from")
+    longitude: float = Field(ge=-180, le=180)
+    radius_km: float = Field(
+        default=100,
+        gt=0,
+        le=300,
+        description="How far the user is willing to go, straight-line km",
+    )
+
+
+def recommend_near(args: RecommendNearArgs) -> dict:
+    profile = _profile(args.sport, args.level)
+    prefs = args.preferences()
+    nearby = locations_within(
+        args.latitude, args.longitude, args.radius_km, profile.sport
+    )
+    if not nearby:
+        anywhere = locations_within(
+            args.latitude, args.longitude, math.inf, profile.sport
+        )
+        hint = (
+            f" The nearest is {anywhere[0][0].name} ({anywhere[0][1]:.0f} km)."
+            if anywhere
+            else ""
+        )
+        raise ToolError(
+            f"No known place for {profile.sport} within {args.radius_km:.0f} km.{hint}"
+        )
+
+    checked = nearby[:MAX_NEARBY]  # nearest first
+    places = {loc.name: (loc, km) for loc, km in checked}
+    predicted = predict_conditions(
+        _bundle(), fetch_all_spots([loc for loc, _ in checked]), profile
+    )
+    best = recommend(predicted, profile, prefs, top=3)
+
+    windows = []
+    for _, row in best.iterrows():
+        loc, km = places[row["spot"]]
+        window = _window(row) | {
+            "region": loc.region,
+            "distance_km": round(km),
+            "local_guide": loc.is_spot,
+        }
+        if not loc.is_spot:
+            window["warnings"] = window["warnings"] + [
+                "No local guide for this place: check local dangers."
+            ]
+        windows.append(window)
+    return {
+        "distance": "straight-line (kuş uçuşu), not driving distance",
+        "places_checked": [
+            {"name": loc.name, "distance_km": round(km)} for loc, km in checked
+        ],
+        "places_not_checked": len(nearby) - len(checked),  # farther than these
+        "windows_best_first": windows,
+    }
+
+
+# ---------- Tool 5: search_knowledge (RAG) ----------
 
 
 class SearchKnowledgeArgs(BaseModel):
@@ -406,7 +550,8 @@ TOOLS = [
     Tool(
         "find_location",
         "Find coordinates of a place in Turkey by its name. Use it before check_conditions "
-        "when the user names a place.",
+        "when the user names a place. SpotCast's own places come first (known_spot): they "
+        "are on the water and have shore data.",
         FindLocationArgs,
         find_location,
     ),
@@ -426,6 +571,15 @@ TOOLS = [
         recommend_spots,
     ),
     Tool(
+        "recommend_near",
+        "Find the best time windows at ALL places SpotCast knows near a point (guided "
+        "spots and other beaches) within radius_km, in the next 7 days. Use it when the "
+        "user says where they live or start from: 'I live in Izmir, where should I go?'. "
+        "Get the coordinates with find_location first.",
+        RecommendNearArgs,
+        recommend_near,
+    ),
+    Tool(
         "search_knowledge",
         "Search SpotCast's guides: spot guides, the Beaufort scale and safety rules "
         "(offshore wind, rip currents, ...). Use it for advice and safety questions.",
@@ -434,6 +588,8 @@ TOOLS = [
     ),
 ]
 TOOLS_BY_NAME = {tool.name: tool for tool in TOOLS}
+# Tools whose results are about conditions: answers built on them get the fixed caution
+CONDITION_TOOLS = {"check_conditions", "recommend_spots", "recommend_near"}
 
 
 def main() -> None:

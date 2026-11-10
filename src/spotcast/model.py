@@ -1,5 +1,14 @@
-"""Training, evaluating, saving and using the suitability classifier."""
+"""Training, evaluating, saving and using the suitability classifier.
 
+ONE model serves every activity profile (Stage 11). It does not see raw wind and waves but
+their distance to the profile's limits ("wind is 3 kn above this profile's maximum"). A
+decision tree asks about one column at a time, so it can only compare wind with a limit if
+that comparison is a column. With these relative features it learns the idea once and works
+for every profile, even one added later without retraining (measured: macro F1 0.998 on a
+profile left out of training; raw wind + limit columns: 0.65).
+"""
+
+from dataclasses import asdict
 from datetime import date
 from pathlib import Path
 from typing import Any
@@ -13,18 +22,72 @@ from sklearn.metrics import accuracy_score, classification_report, confusion_mat
 from sklearn.tree import DecisionTreeClassifier, export_text
 
 from spotcast.config import MODELS_DIR
-from spotcast.labels import is_unsafe
+from spotcast.labels import add_labels, is_unsafe
 from spotcast.profiles import ActivityProfile
+from spotcast.shore import unsafe_offshore_flags
 
+# What the model sees: conditions measured against one profile's limits
 FEATURES = [
-    "wind_speed_10m",
-    "wind_direction_10m",
-    "wave_height",
-    "wave_period",
+    "wind_over_min",  # wind - min_wind_kn (negative: not enough wind)
+    "wind_over_good_min",  # wind - good_wind_min_kn
+    "wind_under_good_max",  # good_wind_max_kn - wind
+    "wind_over_max",  # wind - max_wind_kn (positive: unsafe)
+    "wave_over_good_max",  # wave - good_wave_max_m
+    "wave_over_max",  # wave - max_wave_m (zero or positive: unsafe)
+    "offshore_over_max",  # offshore wind - max_offshore_wind_kn (positive: unsafe)
     "is_day",
 ]
+# Raw inputs whose training range is saved with the model, to notice data drift
+MONITORED_INPUTS = ["wind_speed_10m", "wave_height", "wave_period"]
+MODEL_FILE = "suitability.joblib"
 TARGET = "label"
 CLASSES = ["bad", "marginal", "good"]  # fixed order for reports and matrices
+
+
+def make_features(conditions: pd.DataFrame, profile: ActivityProfile) -> pd.DataFrame:
+    """The model's input for one profile: each condition minus the profile's limit."""
+    wind, wave = conditions["wind_speed_10m"], conditions["wave_height"]
+    # Wind that blows from the land (outside a sheltered bay) counts here; else 0 kn
+    offshore_wind = wind.where(unsafe_offshore_flags(conditions), 0.0)
+    offshore_limit = (
+        profile.max_offshore_wind_kn
+        if profile.max_offshore_wind_kn is not None
+        else profile.max_wind_kn
+    )
+    return pd.DataFrame(
+        {
+            "wind_over_min": wind - profile.min_wind_kn,
+            "wind_over_good_min": wind - profile.good_wind_min_kn,
+            "wind_under_good_max": profile.good_wind_max_kn - wind,
+            "wind_over_max": wind - profile.max_wind_kn,
+            "wave_over_good_max": wave - profile.good_wave_max_m,
+            "wave_over_max": wave - profile.max_wave_m,
+            "offshore_over_max": offshore_wind - offshore_limit,
+            "is_day": conditions["is_day"],
+        },
+        index=conditions.index,
+    )[FEATURES]
+
+
+def training_table(
+    history: pd.DataFrame, profiles: list[ActivityProfile]
+) -> pd.DataFrame:
+    """Every hour of history once per profile, with its features and rule-based label.
+
+    3 spots x 42k hours x 12 profiles: ~1.5 million rows, a few seconds for a tree.
+    """
+    frames = []
+    for profile in profiles:
+        labeled = add_labels(history, profile)
+        frames.append(
+            make_features(labeled, profile).assign(
+                label=labeled["label"],
+                time=labeled["time"],
+                spot=labeled["spot"],
+                profile=profile.name,
+            )
+        )
+    return pd.concat(frames, ignore_index=True)
 
 
 def split_by_year(
@@ -43,22 +106,32 @@ def train_baseline(X_train: pd.DataFrame, y_train: pd.Series) -> DummyClassifier
 
 
 def train_tree(
-    X_train: pd.DataFrame, y_train: pd.Series, max_depth: int = 5
+    X_train: pd.DataFrame, y_train: pd.Series, max_depth: int = 7
 ) -> DecisionTreeClassifier:
-    """A decision tree: learns a chain of if/else questions from the data."""
+    """A decision tree: learns a chain of if/else questions from the data.
+
+    Depth 7 (measured in Stage 11, with the offshore rule): depth 5 reached macro F1 0.933
+    and had no room left for the good/marginal edge of SUP and kayak; 7 reaches 1.000 with
+    only 10 leaves, and deeper trees don't grow any further.
+    """
     tree = DecisionTreeClassifier(max_depth=max_depth, random_state=42)
     return tree.fit(X_train, y_train)
 
 
 def predict_with_guardrail(
-    model: ClassifierMixin, X: pd.DataFrame, profile: ActivityProfile
+    model: ClassifierMixin, conditions: pd.DataFrame, profile: ActivityProfile
 ) -> list[str]:
-    """Model predictions, but unsafe conditions for this profile are always "bad"."""
-    predictions = model.predict(X)
+    """Model predictions for this profile, but unsafe conditions are always "bad"."""
+    predictions = model.predict(make_features(conditions, profile))
     return [
-        "bad" if is_unsafe(profile, wind, wave, day) else prediction
-        for prediction, wind, wave, day in zip(
-            predictions, X["wind_speed_10m"], X["wave_height"], X["is_day"], strict=True
+        "bad" if is_unsafe(profile, wind, wave, day, offshore) else prediction
+        for prediction, wind, wave, day, offshore in zip(
+            predictions,
+            conditions["wind_speed_10m"],
+            conditions["wave_height"],
+            conditions["is_day"],
+            unsafe_offshore_flags(conditions),
+            strict=True,
         )
     ]
 
@@ -112,13 +185,14 @@ def show_tree(tree: DecisionTreeClassifier) -> str:
     return rules
 
 
-def model_path(profile: ActivityProfile, models_dir: Path = MODELS_DIR) -> Path:
-    """Where the model for this profile is stored, e.g. models/windsurf_intermediate.joblib."""
-    return models_dir / f"{profile.sport}_{profile.level}.joblib"
+def model_path(models_dir: Path = MODELS_DIR) -> Path:
+    """Where the one model for all profiles is stored: models/suitability.joblib."""
+    return models_dir / MODEL_FILE
 
 
 def feature_ranges(X: pd.DataFrame) -> dict[str, list[float]]:
-    """The [min, max] of every numeric feature in the training data. Saved with the model,
+    """The [min, max] of every numeric column (we pass MONITORED_INPUTS of the training
+    history). Saved with the model,
     so live data outside what the model has seen can be noticed (it once called 40 knots
     "good", having never seen more than 27.7)."""
     numeric = X.select_dtypes("number")
@@ -127,7 +201,7 @@ def feature_ranges(X: pd.DataFrame) -> dict[str, list[float]]:
 
 def save_model(
     model: ClassifierMixin,
-    profile: ActivityProfile,
+    profiles: list[ActivityProfile],
     train_years: list[int],
     models_dir: Path = MODELS_DIR,
     ranges: dict[str, list[float]] | None = None,
@@ -137,24 +211,25 @@ def save_model(
     bundle = {
         "model": model,
         "features": FEATURES,  # the exact columns, in the exact order, it was trained on
-        "profile": profile,
+        # The limits of the profiles it was trained on, for the record. Predictions use the
+        # current profiles.toml: the features are relative, so a changed limit needs no
+        # retraining.
+        "profiles": {p.name: asdict(p) for p in profiles},
         "train_years": train_years,
         # The last day of training data: retraining tests a new model on data after this
         "train_end": train_end.isoformat() if train_end else None,
         "feature_ranges": ranges or {},  # what the model has seen (for monitoring)
         "sklearn_version": sklearn.__version__,
     }
-    path = model_path(profile, models_dir)
-    models_dir.mkdir(exist_ok=True)
+    path = model_path(models_dir)
+    models_dir.mkdir(parents=True, exist_ok=True)
     joblib.dump(bundle, path)
     return path
 
 
-def load_model(
-    profile: ActivityProfile, models_dir: Path = MODELS_DIR
-) -> dict[str, Any]:
+def load_model(models_dir: Path = MODELS_DIR) -> dict[str, Any]:
     """Load a saved model bundle. Only load files you created yourself (see joblib docs)."""
-    path = model_path(profile, models_dir)
+    path = model_path(models_dir)
     if not path.exists():
         raise FileNotFoundError(
             f"No saved model at {path}. Run `uv run spotcast` first."
@@ -170,10 +245,14 @@ def load_model(
 
 
 def predict_conditions(
-    bundle: dict[str, Any], conditions: pd.DataFrame
+    bundle: dict[str, Any], conditions: pd.DataFrame, profile: ActivityProfile
 ) -> pd.DataFrame:
-    """Add a "prediction" column to a conditions table (e.g. the 7-day forecast)."""
-    X = conditions[bundle["features"]]
+    """Add a "prediction" column for this profile to a conditions table (e.g. the forecast)."""
+    if bundle["features"] != FEATURES:
+        raise ValueError(
+            "The saved model was trained with different features. Retrain it: "
+            "`uv run spotcast` (or delete models/ and let the job train a new one)."
+        )
     result = conditions.copy()
-    result["prediction"] = predict_with_guardrail(bundle["model"], X, bundle["profile"])
+    result["prediction"] = predict_with_guardrail(bundle["model"], conditions, profile)
     return result

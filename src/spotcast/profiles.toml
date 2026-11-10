@@ -1,0 +1,170 @@
+# Activity profiles: when conditions suit one sport at one skill level.
+# This file is the single source of truth; profiles.py reads and checks it.
+#
+# ALL NUMBERS ARE ASSUMPTIONS, not facts: general guidance for flat-water or small-wave
+# recreational sessions, chosen to err on the safe side. They decide what SpotCast calls
+# "good", so they are kept here, together, where they are easy to find and argue about.
+#
+# Fields (wind in knots, waves in metres):
+#   max_wind_kn       wind ABOVE this is unsafe: always "bad", the model cannot override it
+#   max_wave_m        waves AT OR ABOVE this are unsafe
+#   min_wind_kn       below this there is not enough wind for the sport ("bad", not unsafe).
+#                     0 for sports that need no wind (SUP, kayak)
+#   good_wind_min_kn  the comfortable wind range for this level...
+#   good_wind_max_kn
+#   good_wave_max_m   ...and the comfortable wave height
+#   ideal_wind_kn     optional: the best wind inside the good range; the recommender
+#                     prefers hours closest to it. Default: the middle of the good range.
+#                     Calm-water sports set it to 0.
+#   max_offshore_wind_kn  offshore wind (blowing from the land out to sea) ABOVE this is
+#                     unsafe. 0 = never in offshore wind. Which hours are offshore depends
+#                     on the beach: see shore_facing in locations.toml.
+#
+# Rules checked on load: 0 <= min_wind <= good_wind_min <= good_wind_max <= max_wind,
+# good_wave_max < max_wave, ideal_wind inside the good range, 0 <= max_offshore <= max_wind.
+
+# --- Windsurf: needs wind; planing starts around 12-15 kn ---
+
+[[profile]]
+sport = "windsurf"
+level = "beginner"
+max_wind_kn = 16      # beginners cannot control a sail in stronger gusts
+max_wave_m = 0.8
+min_wind_kn = 5
+good_wind_min_kn = 6  # learning happens in light, steady wind
+good_wind_max_kn = 12
+good_wave_max_m = 0.3 # flat water
+max_offshore_wind_kn = 5  # a beginner cannot sail back upwind against it
+
+[[profile]]
+sport = "windsurf"
+level = "intermediate"
+max_wind_kn = 28      # strong gusts, hard to control for an intermediate rider
+max_wave_m = 2.0
+min_wind_kn = 10      # the sail does not fill below this
+good_wind_min_kn = 15 # planing starts around here
+good_wind_max_kn = 25
+good_wave_max_m = 1.0
+max_offshore_wind_kn = 12
+
+[[profile]]
+sport = "windsurf"
+level = "advanced"
+max_wind_kn = 35
+max_wave_m = 3.5
+min_wind_kn = 12
+good_wind_min_kn = 18
+good_wind_max_kn = 30
+good_wave_max_m = 2.0
+max_offshore_wind_kn = 18
+
+# --- Kitesurf: needs steady wind; gusts and too much power are the main risks ---
+
+[[profile]]
+sport = "kitesurf"
+level = "beginner"
+max_wind_kn = 20      # a kite overpowers a beginner quickly
+max_wave_m = 1.0
+min_wind_kn = 10
+good_wind_min_kn = 12
+good_wind_max_kn = 18
+good_wave_max_m = 0.5
+max_offshore_wind_kn = 0  # never: a kite drags you out to sea
+
+[[profile]]
+sport = "kitesurf"
+level = "intermediate"
+max_wind_kn = 28
+max_wave_m = 2.0
+min_wind_kn = 11
+good_wind_min_kn = 14
+good_wind_max_kn = 24
+good_wave_max_m = 1.0
+max_offshore_wind_kn = 0
+
+[[profile]]
+sport = "kitesurf"
+level = "advanced"
+max_wind_kn = 35
+max_wave_m = 3.5
+min_wind_kn = 12
+good_wind_min_kn = 15
+good_wind_max_kn = 30
+good_wave_max_m = 2.5
+max_offshore_wind_kn = 0  # kitesurf schools teach: never in offshore wind
+
+# --- SUP (stand-up paddle): calm is best; wind makes paddling back hard ---
+
+[[profile]]
+sport = "sup"
+level = "beginner"
+max_wind_kn = 10
+max_wave_m = 0.5
+min_wind_kn = 0
+good_wind_min_kn = 0
+good_wind_max_kn = 6
+good_wave_max_m = 0.2
+ideal_wind_kn = 0
+max_offshore_wind_kn = 3  # even light offshore wind carries a board out
+
+[[profile]]
+sport = "sup"
+level = "intermediate"
+max_wind_kn = 14
+max_wave_m = 0.8
+min_wind_kn = 0
+good_wind_min_kn = 0
+good_wind_max_kn = 8
+good_wave_max_m = 0.4
+ideal_wind_kn = 0
+max_offshore_wind_kn = 5
+
+[[profile]]
+sport = "sup"
+level = "advanced"
+max_wind_kn = 18
+max_wave_m = 1.5
+min_wind_kn = 0
+good_wind_min_kn = 0
+good_wind_max_kn = 10
+good_wave_max_m = 0.8
+ideal_wind_kn = 0
+max_offshore_wind_kn = 8
+
+# --- Sea kayak (kano): calm is best; a kayak handles a little more wind than a SUP ---
+
+[[profile]]
+sport = "kayak"
+level = "beginner"
+max_wind_kn = 11
+max_wave_m = 0.6
+min_wind_kn = 0
+good_wind_min_kn = 0
+good_wind_max_kn = 7
+good_wave_max_m = 0.3
+ideal_wind_kn = 0
+max_offshore_wind_kn = 4
+
+[[profile]]
+sport = "kayak"
+level = "intermediate"
+max_wind_kn = 15
+max_wave_m = 1.0
+min_wind_kn = 0
+good_wind_min_kn = 0
+good_wind_max_kn = 10
+good_wave_max_m = 0.5
+ideal_wind_kn = 0
+max_offshore_wind_kn = 7
+
+[[profile]]
+sport = "kayak"
+level = "advanced"
+max_wind_kn = 20
+max_wave_m = 2.0
+min_wind_kn = 0
+good_wind_min_kn = 0
+good_wind_max_kn = 14
+good_wave_max_m = 1.0
+ideal_wind_kn = 0
+max_offshore_wind_kn = 10

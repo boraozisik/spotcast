@@ -30,7 +30,7 @@ from pydantic import BaseModel, Field
 from spotcast.agent import AgentResult, run_agent
 from spotcast.config import PROJECT_ROOT
 from spotcast.llm import chat
-from spotcast.tools import TOOLS_BY_NAME
+from spotcast.tools import CONDITION_TOOLS, TOOLS_BY_NAME
 
 ANSWERS_FILE = PROJECT_ROOT / "evals" / "answers.json"
 JUDGE_FILE = PROJECT_ROOT / "evals" / "judge.json"
@@ -47,6 +47,7 @@ class AnswerCase:
     must_call: list[str] = field(default_factory=list)
     arguments: dict[str, dict] = field(default_factory=dict)  # tool → expected values
     must_mention: list[str] = field(default_factory=list)  # regexes
+    must_not_mention: list[str] = field(default_factory=list)  # regexes: known mistakes
     judge: bool = False  # compare the answer with the knowledge excerpts
 
 
@@ -82,7 +83,11 @@ def frozen_tools(results: dict[str, dict]) -> Iterator[None]:
 SAFE_WORD = re.compile(r"\bgüvenl(?:i(?!k)|e)\w*", re.IGNORECASE)
 SUITABLE = re.compile(r"\buygun\b(?!\s+mu)", re.IGNORECASE)
 NEGATION = re.compile(
-    r"değil|olmayan|olmadığ|olmayacak|olmaz|yok|bulunm|bulunama|sayılmaz", re.IGNORECASE
+    r"değil|olmayan|olmadığ|olmayacak|olmaz|yok|bulunm|bulunama|sayılmaz"
+    # "look for better conditions" is advice, not a claim. "Better conditions are
+    # expected" (bekleniyor) still counts: the tools never said things will improve.
+    r"|daha uygun\b[^.]*\bara",
+    re.IGNORECASE,
 )
 NUMBER = r"(\d+(?:[.,]\d+)?)"
 UNITS = {"knot": r"knot|kn\b|kt\b|deniz mili", "metre": r"metre|m\b"}
@@ -150,9 +155,6 @@ def invented_numbers(text: str, results: list[Any], question: str) -> list[str]:
     ]
 
 
-CONDITION_TOOLS = {"check_conditions", "recommend_spots"}
-
-
 def good_hours(result: AgentResult) -> int | None:
     """How many 'good' hours the tools reported. None if no conditions tool ran."""
     counts = []
@@ -161,7 +163,7 @@ def good_hours(result: AgentResult) -> int | None:
             continue
         if step.tool == "check_conditions":
             counts.append(step.result.get("label_counts", {}).get("good", 0))
-        elif step.tool == "recommend_spots":
+        elif step.tool in ("recommend_spots", "recommend_near"):
             counts += [w["good_hours"] for w in step.result["windows_best_first"]]
     return sum(counts) if counts else None
 
@@ -304,6 +306,9 @@ def check_answer(
 
     missing_words = [p for p in case.must_mention if not re.search(p, text, re.I)]
     checks.append(Check("mentions", not missing_words, f"missing {missing_words}"))
+    if case.must_not_mention:
+        wrong = [p for p in case.must_not_mention if re.search(p, text, re.I)]
+        checks.append(Check("no known mistakes", not wrong, f"found {wrong}"))
 
     # The rule is "never call CONDITIONS safe". In advice answers "the safest thing is not
     # to go in" is right, so there the judge compares the wording with the source instead.

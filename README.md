@@ -1,9 +1,10 @@
-# SpotCast
+# SpotcastAI
 
 **Is this spot right for my level, at this hour?**
-SpotcastAI is an AI-powered windsurf forecasting system for the Turkish coast. It turns raw wind
-and wave forecasts into clear, hour-by-hour verdicts and the best time windows to go, and
-answers free-form questions through a tool-calling AI assistant.
+SpotcastAI is an AI-powered forecasting system for water sports on the Turkish coast: windsurf,
+kitesurf, stand-up paddle (SUP) and sea kayak, each at beginner, intermediate and advanced level.
+It turns raw wind and wave forecasts into clear, hour-by-hour verdicts and the best time windows
+to go, and answers free-form questions through a tool-calling AI assistant.
 
 [![CI](https://github.com/boraozisik/spotcast-ai/actions/workflows/ci.yml/badge.svg)](https://github.com/boraozisik/spotcast-ai/actions/workflows/ci.yml)
 [![Publish site data](https://github.com/boraozisik/spotcast-ai/actions/workflows/publish.yml/badge.svg)](https://github.com/boraozisik/spotcast-ai/actions/workflows/publish.yml)
@@ -12,31 +13,43 @@ answers free-form questions through a tool-calling AI assistant.
 
 ## Features
 
-- **Hour-by-hour verdicts.** Every forecast hour is labelled _good_, _marginal_ or _not suitable_
-  by a machine learning model, for a given sport and skill level.
+- **Hour-by-hour verdicts for 12 profiles.** Every forecast hour is labelled _good_, _marginal_ or
+  _not suitable_ for a sport and skill level. One model serves all profiles: it sees conditions
+  relative to each profile's limits, so it also works for a profile it was not trained on.
 - **Hard safety guardrails.** Safety rules sit on top of the model and can never be overridden:
   a storm is never "good", whatever the model predicts.
+- **Offshore wind.** Every place knows which way its beach faces, so wind blowing from the land
+  out to sea is recognised and limited per profile (never for kitesurf). Sheltered bays, where a
+  drifting rider reaches another shore, are marked as such only when confirmed by local knowledge,
+  and every answer explains it.
 - **Best time windows.** An optimizer picks the best spot and session window under the user's
-  constraints (hours, weekend, minimum session length).
-- **Any point on the coast.** Places outside the curated spots are assessed with the same model and
-  rules, with explicit warnings when there is no wave data or no local guide.
+  constraints (hours, weekend, minimum session length), only at spots where the sport is done.
+- **Places near me.** "I live in Izmir, where should I go on Saturday?": the assistant ranks every
+  known place within a distance; the website does the same with the browser's location, which
+  never leaves the page.
+- **Any point on the coast.** 29 places on the Turkish coast, each checked against the OpenStreetMap
+  coastline to be on the water. Places outside the curated spots are assessed with the same model
+  and rules, with explicit warnings when there is no local guide.
 - **Explanations with sources.** A locally hosted LLM explains each recommendation in Turkish,
   citing spot guides and safety documents retrieved from a vector database.
 - **AI assistant and MCP server.** A tool-calling agent answers questions such as "Is Saturday in
-  Mersin OK for windsurfing?". The same tools are available to other AI clients through MCP.
+  Mersin OK for windsurfing?". Code checks every tool call: made-up coordinates and a day other
+  than the one the user named are sent back to the model. The same tools are available to other
+  AI clients through MCP.
 - **Uncertainty notes.** Forecasts five or more days ahead and points without wave data are flagged
   automatically.
 - **Continuously evaluated.** Retrieval quality, agent answers and an LLM judge are measured on
   fixed test sets.
 
-Windsurfing at intermediate level is the first supported profile. Sports and levels are defined
-as configuration ("activity profiles"), so new ones need no code changes.
+Sports, levels and places are data, not code (`profiles.toml`, `locations.toml`): adding one is a
+new block in a file, checked when it is loaded.
 
 ## Architecture
 
 ```mermaid
 flowchart LR
-    OM[Open-Meteo<br/>forecast + history] --> DATA[pandas<br/>Parquet / PostgreSQL]
+    OM[Open-Meteo<br/>batched, rate-limited] --> DATA[pandas<br/>Parquet / PostgreSQL]
+    CAT[locations.toml<br/>profiles.toml] --> CLS
     DATA --> CLS[Suitability model<br/>scikit-learn + guardrail]
     DATA --> FC[Wind forecasting<br/>XGBoost / LSTM]
     CLS --> REC[Recommender<br/>optimization]
@@ -75,9 +88,22 @@ because PostgreSQL's ranking ignores how common a word is; filtering common word
 80% (contradictions) and 70% (unsupported additions) of cases. Splitting answers into claims and
 deciding in code: 100% / 100%.
 
-**Agent answers** (10 scenarios with frozen tool results, each run 3 times): 8/10 on the first run.
-The evaluation caught the agent mapping "yarın" (tomorrow) to the wrong date in 3 of 3 runs; after
-the fix, 30/30 runs pass.
+**Agent answers** (11 scenarios with frozen tool results, run several times each): 8/10 on the first
+run. The evaluation caught the agent mapping "yarın" (tomorrow) to the wrong date in 3 of 3 runs;
+after the fix, 30/30 runs pass. A "places near me" scenario added later caught the model claiming
+that a place without a local guide had one: distances and the guide note are now written by code
+(3/3).
+
+**One model for every profile** (test year 2025, macro F1): one tree per profile 1.000; one tree
+with raw wind and limit columns 0.742 (0.653 on an unseen profile, because a tree compares one
+column at a time); one tree with relative features ("wind minus this profile's limit") 0.998, and
+0.998 on a profile left out of training. With the offshore rule, tree depth was chosen by
+measurement: depth 5 reached 0.933, depth 7 reaches 1.000 with 10 leaves.
+
+**Data quality.** Checking the forecast points against the OpenStreetMap coastline showed that 15
+of 29 were on land (one on a 76 m hill), unnoticed because the coarse wave model still returned
+data. Training on one place per sea (Mediterranean, Aegean, Black Sea) instead of three Aegean
+spots took the hours outside the training range from 8-10 per run to 0.
 
 **48-hour wind forecasting** (MAE in knots, test year 2025): persistence 2.91, climatology 2.46,
 XGBoost 2.43, LSTM 2.40. A horizon study (1 h: 0.69 → 48 h: 2.43) shows that the remaining error is
@@ -86,12 +112,15 @@ an information limit of local history, not a modelling limit.
 ## Design principles
 
 - **Code computes, the LLM only words it.** Dates, comparisons and unit conversions are done in code.
-- **Critical rules live in code, not in prompts.** The user's level is fixed by the system and
-  hidden from the model; the model cannot change it.
+- **Critical rules live in code, not in prompts.** The user's sport and level are fixed by the
+  system and hidden from the model; tool calls with made-up coordinates or the wrong day are sent
+  back; facts like "no local guide here" and what offshore means are written by code.
 - **Safety text never comes from the LLM.** Cautions, uncertainty notes and source quotes are fixed
   texts added by the system.
 - **Measured, not assumed.** Every change is checked against a baseline on a fixed test set.
-- **Human review.** New knowledge documents enter as drafts and become searchable only after review.
+- **Human review.** New knowledge documents enter as drafts and become searchable only after review;
+  sheltered bays are marked only after local confirmation; a retrained model reaches the site only
+  after approval.
 
 ## Tech stack
 
@@ -103,8 +132,9 @@ Docker · GitHub Actions · Next.js · TypeScript · Tailwind CSS · Netlify
 
 | Path                                                                   | Contents                                                |
 | ---------------------------------------------------------------------- | ------------------------------------------------------- |
-| `src/spotcast/data.py`, `config.py`, `places.py`                       | Open-Meteo data, spots and coastal places               |
-| `src/spotcast/profiles.py`, `labels.py`, `model.py`                    | Activity profiles, labels, classifier, guardrail        |
+| `src/spotcast/data.py`, `config.py`                                    | Open-Meteo data: batched requests, rate limiting, cache |
+| `src/spotcast/locations.toml`, `locations.py`, `shore.py`              | Places, shore direction, offshore rule                  |
+| `src/spotcast/profiles.toml`, `profiles.py`, `labels.py`, `model.py`   | Activity profiles, labels, classifier, guardrail        |
 | `src/spotcast/forecasting.py`, `wind_model.py`, `lstm_model.py`        | 48-hour wind forecasting                                |
 | `src/spotcast/recommend.py`, `api.py`                                  | Optimizer and FastAPI service                           |
 | `src/spotcast/llm.py`, `explain.py`, `rag.py`                          | LLM client, explanations, hybrid retrieval              |
@@ -112,10 +142,11 @@ Docker · GitHub Actions · Next.js · TypeScript · Tailwind CSS · Netlify
 | `src/spotcast/tools.py`, `agent.py`, `agent_graph.py`, `mcp_server.py` | Tools, agents, MCP server                               |
 | `src/spotcast/evals/`, `evals/`                                        | Evaluation code and test sets                           |
 | `src/spotcast/tracking.py`                                             | MLflow experiment tracking                              |
-| `src/spotcast/publish.py`                                              | Batch job behind the website                            |
+| `src/spotcast/publish.py`, `monitoring.py`, `retrain.py`               | Batch job, data checks, champion/challenger retraining  |
+| `scripts/shore_facing.py`                                              | Places checked against the OpenStreetMap coastline      |
 | `knowledge/`                                                           | Spot guides, Beaufort scale, safety rules (RAG sources) |
 | `web/`                                                                 | Next.js website (EN/TR)                                 |
-| `tests/`                                                               | 200+ tests (pytest, no network or LLM needed)           |
+| `tests/`                                                               | 300+ tests (pytest, no network or LLM needed)           |
 
 ## Running locally
 
@@ -153,7 +184,9 @@ uv run ruff check . && uv run ruff format --check .
 
 Weather and wave data: [Open-Meteo.com](https://open-meteo.com/), licensed
 [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) (historical data from ERA5 /
-Copernicus). Photos and signs used in the vision and OCR experiments are public domain and are not
+Copernicus). Requests stay within Open-Meteo's free-use limits. Coastline data used to check the
+places and their shore direction: © [OpenStreetMap](https://www.openstreetmap.org/copyright)
+contributors, ODbL. Photos and signs used in the vision and OCR experiments are public domain and are not
 included in this repository.
 
 SpotCast forecasts are guidance only. Always check the conditions on site before going out.
