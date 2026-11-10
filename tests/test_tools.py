@@ -223,3 +223,60 @@ def test_weather_service_failure_is_a_readable_error(monkeypatch):
         {"latitude": IZMIR[0], "longitude": IZMIR[1]}
     )
     assert "weather service did not answer" in result["error"]
+
+
+def test_find_location_puts_our_own_place_first(monkeypatch):
+    """Turkey has many villages called Akyaka; the geocoder listed three inland ones."""
+
+    class Answer:
+        def raise_for_status(self):
+            pass
+
+        def json(self):
+            return {
+                "results": [
+                    {
+                        "name": "Akyaka",
+                        "admin1": "Kars",
+                        "latitude": 40.74,
+                        "longitude": 43.61,
+                    },
+                    {
+                        "name": "Akyaka",
+                        "admin1": "Muğla",
+                        "latitude": 37.05,
+                        "longitude": 28.33,
+                    },
+                ]
+            }
+
+    monkeypatch.setattr(tools.requests, "get", lambda *a, **k: Answer())
+    places = tools.TOOLS_BY_NAME["find_location"].call({"name": "akyaka"})["places"]
+
+    assert places[0]["name"] == "Akyaka" and places[0]["known_spot"]
+    assert places[0]["region"] == "Muğla"
+    assert [p["region"] for p in places[1:]] == ["Kars"]  # Muğla's duplicate is dropped
+
+
+def test_town_centre_points_to_our_place_on_the_water(monkeypatch):
+    class Answer:
+        def raise_for_status(self):
+            pass
+
+        def json(self):
+            return {
+                "results": [
+                    {
+                        "name": "Mersin",
+                        "admin1": "Mersin",
+                        "latitude": 36.81,
+                        "longitude": 34.64,
+                    }
+                ]
+            }
+
+    monkeypatch.setattr(tools.requests, "get", lambda *a, **k: Answer())
+    [mersin] = tools.TOOLS_BY_NAME["find_location"].call({"name": "Mersin"})["places"]
+
+    assert mersin["coastal_place_nearby"]["name"] == "Mezitli sahili"
+    assert mersin["coastal_place_nearby"]["distance_km"] <= tools.COASTAL_NEARBY_KM

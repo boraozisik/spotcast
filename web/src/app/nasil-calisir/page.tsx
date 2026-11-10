@@ -10,15 +10,15 @@ const PARTS: { title: Text; text: Text }[] = [
   {
     title: { en: "Data", tr: "Veri" },
     text: {
-      en: "Wind and wave data from Open-Meteo: 7-day forecasts and hourly history since 2022 (3 spots × 42,192 hours). pandas, Parquet, PostgreSQL.",
-      tr: "Open-Meteo'dan rüzgâr ve dalga verisi: 7 günlük tahmin ve 2022'den bu yana saatlik geçmiş (3 spot × 42.192 saat). pandas, Parquet, PostgreSQL.",
+      en: "Wind and wave data from Open-Meteo: 7-day forecasts for 29 places in one batched request, and hourly history since 2022 from 9 places across 5 seas (380,000 hours), paced to the free API's limits. Every point was checked against the OpenStreetMap coastline: it must be on the water, and the shore direction decides when wind is offshore. pandas, Parquet, PostgreSQL.",
+      tr: "Open-Meteo'dan rüzgâr ve dalga verisi: 29 yer için tek toplu istekte 7 günlük tahmin ve 5 denizden 9 yerin 2022'den bu yana saatlik geçmişi (380.000 saat); istekler ücretsiz API'nin sınırlarına göre ayarlanır. Her nokta OpenStreetMap kıyı çizgisiyle kontrol edildi: denizde olmalı, ve kıyının baktığı yön rüzgârın ne zaman karadan estiğini belirler. pandas, Parquet, PostgreSQL.",
     },
   },
   {
     title: { en: "Suitability model", tr: "Uygunluk modeli" },
     text: {
-      en: "A scikit-learn model labels every hour as good, marginal or not suitable. Models can fail on conditions they have never seen, so a hard safety rule (guardrail) sits on top of it.",
-      tr: "Bir scikit-learn modeli her saati uygun, sınırda veya uygun değil olarak etiketler. Modeller hiç görmedikleri koşullarda yanılabildiği için üstünde aşılamayan bir güvenlik kuralı (guardrail) bulunur.",
+      en: "One scikit-learn model labels every hour as good, marginal or not suitable for 12 profiles (4 sports × 3 levels). It sees conditions relative to each profile's limits (\"3 knots above this level's maximum\"), so it works even for a profile it was not trained on. Models can fail on conditions they have never seen, so hard safety rules (guardrail) sit on top: wind, waves, darkness and offshore wind, with an exception only for sheltered bays confirmed by someone who knows the place.",
+      tr: "Tek bir scikit-learn modeli 12 profil (4 spor × 3 seviye) için her saati uygun, sınırda veya uygun değil olarak etiketler. Koşulları her profilin sınırlarına göre görür (\"bu seviyenin üst sınırından 3 knot fazla\"); bu yüzden eğitimde görmediği bir profilde de çalışır. Modeller hiç görmedikleri koşullarda yanılabildiği için üstünde aşılamayan güvenlik kuralları (guardrail) bulunur: rüzgâr, dalga, karanlık ve karadan esen rüzgâr; tek istisna, yerini bilen birinin onayladığı korunaklı koylar.",
     },
   },
   {
@@ -31,8 +31,8 @@ const PARTS: { title: Text; text: Text }[] = [
   {
     title: { en: "Recommendation engine", tr: "Öneri motoru" },
     text: {
-      en: "An optimizer picks the best spot and time window under the user's constraints: hours, weekend, minimum session length.",
-      tr: "Bir optimizasyon katmanı, kullanıcının kısıtlarına (saat aralığı, hafta sonu, en kısa seans süresi) uyan en iyi spotu ve zaman aralığını seçer.",
+      en: "An optimizer picks the best spot and time window under the user's constraints: hours, weekend, minimum session length, distance from where the user starts, and only spots where the sport is done.",
+      tr: "Bir optimizasyon katmanı, kullanıcının kısıtlarına (saat aralığı, hafta sonu, en kısa seans süresi, kullanıcının bulunduğu yere uzaklık, sadece o sporun yapıldığı spotlar) uyan en iyi yeri ve zaman aralığını seçer.",
     },
   },
   {
@@ -59,8 +59,8 @@ const PARTS: { title: Text; text: Text }[] = [
   {
     title: { en: "MLOps", tr: "MLOps" },
     text: {
-      en: "MLflow experiment tracking and model registry, a Docker image, GitHub Actions CI (lint, 200+ tests, Docker and website builds) and the scheduled batch job behind this site.",
-      tr: "MLflow ile deney takibi ve model kaydı, Docker imajı, GitHub Actions CI (lint, 200+ test, Docker ve site derlemesi) ve bu siteyi besleyen zamanlanmış toplu iş.",
+      en: "MLflow experiment tracking and model registry, a Docker image, GitHub Actions CI (lint, 300+ tests, Docker and website builds), the scheduled batch job behind this site with data-quality and drift checks, and weekly champion/challenger retraining with human approval.",
+      tr: "MLflow ile deney takibi ve model kaydı, Docker imajı, GitHub Actions CI (lint, 300+ test, Docker ve site derlemesi), bu siteyi besleyen ve veri kalitesi ile veri kaymasını denetleyen zamanlanmış toplu iş, insan onaylı haftalık champion/challenger yeniden eğitim.",
     },
   },
 ];

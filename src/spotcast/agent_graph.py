@@ -21,6 +21,7 @@ Run: uv run spotcast-graph
 import argparse
 import json
 import time
+from collections.abc import Callable
 from dataclasses import asdict
 from datetime import datetime
 from typing import Annotated, Any, Literal, TypedDict
@@ -43,6 +44,7 @@ from spotcast.agent import (
     SYSTEM_PROMPT,
     Step,
     UserProfile,
+    check_call,
     date_table,
     decide_profile,
     finish_answer,
@@ -68,8 +70,13 @@ class AgentState(TypedDict, total=False):
     answer: str
 
 
-def build_graph(llm: Any | None = None, profile_reader=read_profile, checkpointer=None):
-    """Build and compile the graph. `llm` and `profile_reader` can be fakes in tests."""
+def build_graph(
+    llm: Any | None = None,
+    profile_reader=read_profile,
+    checkpointer=None,
+    clock: Callable[[], datetime] = datetime.now,
+):
+    """Build and compile the graph. `llm`, `profile_reader` and `clock` can be fakes in tests."""
     llm = llm or ChatOllama(model=CHAT_MODEL, temperature=0.2, reasoning=False)
     llm_with_tools = llm.bind_tools([schema_for_llm(tool) for tool in TOOLS])
 
@@ -89,7 +96,7 @@ def build_graph(llm: Any | None = None, profile_reader=read_profile, checkpointe
 
         new_messages: list[BaseMessage] = []
         if not state.get("messages"):  # first turn: the rules and today's dates
-            prompt = SYSTEM_PROMPT.format(date_table=date_table(datetime.now()))
+            prompt = SYSTEM_PROMPT.format(date_table=date_table(clock()))
             new_messages.append(SystemMessage(prompt))
         new_messages.append(HumanMessage(state["question"]))
         return {
@@ -114,11 +121,17 @@ def build_graph(llm: Any | None = None, profile_reader=read_profile, checkpointe
 
     def tools(state: AgentState) -> dict:
         steps, replies = list(state["steps"]), []
+        # Results of every earlier tool call, this turn and earlier ones ("peki pazar?")
+        earlier = [
+            json.loads(m.content)
+            for m in state["messages"]
+            if isinstance(m, ToolMessage)
+        ]
         for call in state["messages"][-1].tool_calls:
             started = time.monotonic()
-            result = run_tool(
-                call["name"], call["args"], state["sport"], state["level"]
-            )
+            result = check_call(
+                call["name"], call["args"], state["question"], clock(), earlier
+            ) or run_tool(call["name"], call["args"], state["sport"], state["level"])
             step = Step(call["name"], call["args"], result, time.monotonic() - started)
             steps.append(asdict(step))
             replies.append(

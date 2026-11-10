@@ -1,5 +1,5 @@
 {
-  "recorded_at": "2026-11-08 18:30",
+  "recorded_at": "2026-11-10 19:56",
   "model": "qwen3:8b",
   "examples": [
     {
@@ -11,45 +11,100 @@
           "arguments": {
             "name": "Mersin"
           },
-          "summary": "Mersin (Mersin); Mersin (Akçaabat, Trabzon); Mersin (Çatak İlçesi, Van)"
+          "summary": "Mersin (Mersin); Mersin (Akçaabat, Trabzon); Mersin (Çatak İlçesi, Van); Mersinli (Foça İlçesi, İzmir); Mersinli (Salihli İlçesi, Manisa)"
         },
         {
           "tool": "check_conditions",
           "arguments": {
             "day": "2026-11-14",
-            "latitude": 36.81196,
-            "longitude": 34.63886
+            "latitude": 36.7341,
+            "longitude": 34.5304
           },
           "summary": "14 Kasım Cumartesi · saatler: bad: 10 · en iyi aralık: yok"
         }
       ],
-      "llm_text": "Mersin sahilinde 14 Kasım Cumartesi günü rüzgâr sörfü yapmak için tüm saatler \"uygun değil\" (bad) olarak değerlendirildi. 10 saat boyunca kötü koşullar bekleniyor. SpotCast bu bölgeye özel bir yer kılavuzu bulunmuyor, yerel tehlikeleri kontrol etmeniz önerilir. 6 gün sonrası için tahminler çok değişken olabilir, gitmeden önceki gün yeniden kontrol edin.",
-      "answer": "Mersin sahilinde 14 Kasım Cumartesi günü rüzgâr sörfü yapmak için tüm saatler \"uygun değil\" (bad) olarak değerlendirildi. 10 saat boyunca kötü koşullar bekleniyor. SpotCast bu bölgeye özel bir yer kılavuzu bulunmuyor, yerel tehlikeleri kontrol etmeniz önerilir. 6 gün sonrası için tahminler çok değişken olabilir, gitmeden önceki gün yeniden kontrol edin.\n\n⏳ 6 gün sonrası için tahmin: bu kadar uzak tahminler sık değişir. Gitmeden önceki gün yeniden kontrol et.\n\n⚠️ Tahminler değişebilir. Suya girmeden önce sahilde rüzgârı ve dalgayı kendin kontrol et; emin olmadığında girme.",
-      "seconds": 22.0
+      "llm_text": "Mersin sahilinde Cumartesi günü rüzgâr sörfü yapmak için uygun değil. Tüm saatler \"uygun değil\" (bad) olarak değerlendirildi. Rüzgâr kıyıdan uzaklaştıran (offshore) yönlerde ve düşük hızlarda olmakla birlikte, deneyim seviyeniz için yeterli değil. SpotCast bu bölgeye özel bir yer kılavuzu bulunmamaktadır; yerel tehlikeleri kontrol ediniz.",
+      "answer": "Mersin sahilinde Cumartesi günü rüzgâr sörfü yapmak için uygun değil. Tüm saatler \"uygun değil\" (bad) olarak değerlendirildi. Rüzgâr kıyıdan uzaklaştıran (offshore) yönlerde ve düşük hızlarda olmakla birlikte, deneyim seviyeniz için yeterli değil. SpotCast bu bölgeye özel bir yer kılavuzu bulunmamaktadır; yerel tehlikeleri kontrol ediniz.\n\n🌬️ Gündüz 3 saatte rüzgâr karadan denize esiyor (offshore): seni kıyıdan uzaklaştırır. Seviyenin sınırını aşan saatler uygun değil sayıldı.\n\n⚠️ Tahminler değişebilir. Suya girmeden önce sahilde rüzgârı ve dalgayı kendin kontrol et; emin olmadığında girme.",
+      "seconds": 12.7
     },
     {
-      "topic": "Öneri",
-      "question": "Bu hafta sonu rüzgâr sörfü için nereye gideyim? Orta seviyedeyim.",
+      "topic": "Yakınımdaki yerler",
+      "question": "İzmir'de yaşıyorum, cumartesi rüzgâr sörfü için nereye gideyim? Orta seviyedeyim.",
       "steps": [
         {
-          "tool": "recommend_spots",
+          "tool": "find_location",
           "arguments": {
-            "day": "2026-11-14",
-            "weekend_only": true
+            "name": "İzmir"
           },
-          "summary": "Alaçatı 14 Kasım Cumartesi 09:00-18:00 (uygun 0, sınırda 10) | Kuşadası Pamucak 14 Kasım Cumartesi 12:00-17:00 (uygun 0, sınırda 6)"
+          "summary": "İzmir (İzmir); İzmirli (Duzce, Düzce); Boz Dağ (); Izmir Kaklıç Airport (Menemen, İzmir); Adnan Menderes Havalimanı (Gaziemir, İzmir)"
+        },
+        {
+          "tool": "recommend_near",
+          "arguments": {
+            "earliest_hour": 8,
+            "latest_hour": 18,
+            "latitude": 38.41273,
+            "longitude": 27.13838,
+            "radius_km": 100,
+            "weekend_only": true,
+            "day": "2026-11-14"
+          },
+          "summary": "Alaçatı (69 km) 14 Kasım Cumartesi 08:00-18:00 (uygun 0, sınırda 11) | Urla Gülbahçe (43 km) 14 Kasım Cumartesi 08:00-18:00 (uygun 0, sınırda 11) | Seferihisar Sığacık (39 km) 14 Kasım Cumartesi 08:00-18:00 (uygun 0, sınırda 11)"
         }
       ],
-      "llm_text": "Bu hafta sonu rüzgâr sörfü için Alaçatı ve Kuşadası Pamucak önerilir. Alaçatı'da 14 Kasım Cumartesi günü 09:00-18:00 saatleri arasında 10 saat sınırda koşullar beklenirken, Kuşadası Pamucak'ta 12:00-17:00 saatleri arasında 6 saat sınırda koşullar tahmin edilmektedir. Her iki yerde de 6 gün öncesine ait tahminler olduğu için, gitmeden önceki gün yeniden kontrol etmeniz önerilir.",
-      "answer": "Bu hafta sonu rüzgâr sörfü için Alaçatı ve Kuşadası Pamucak önerilir. Alaçatı'da 14 Kasım Cumartesi günü 09:00-18:00 saatleri arasında 10 saat sınırda koşullar beklenirken, Kuşadası Pamucak'ta 12:00-17:00 saatleri arasında 6 saat sınırda koşullar tahmin edilmektedir. Her iki yerde de 6 gün öncesine ait tahminler olduğu için, gitmeden önceki gün yeniden kontrol etmeniz önerilir.\n\n⏳ 6 gün sonrası için tahmin: bu kadar uzak tahminler sık değişir. Gitmeden önceki gün yeniden kontrol et.\n\n⚠️ Tahminler değişebilir. Suya girmeden önce sahilde rüzgârı ve dalgayı kendin kontrol et; emin olmadığında girme.",
-      "seconds": 10.0
+      "llm_text": "Alaçatı, 69 km uzaklıktaki en iyi seçenek. 14 Kasım Cumartesi günü 08:00-18:00 saatleri arasında 11 saat sınırda (marginal) koşullar bekleniyor. Ortalama rüzgar hızı 15.3 knot, maksimum dalgaboyu 1.46 metre. Urla Gülbahçe ve Seferihisar Sığacık da alternatiflerdir, ancak yerel rehber bulunmamaktadır.",
+      "answer": "Alaçatı, 69 km uzaklıktaki en iyi seçenek. 14 Kasım Cumartesi günü 08:00-18:00 saatleri arasında 11 saat sınırda (marginal) koşullar bekleniyor. Ortalama rüzgar hızı 15.3 knot, maksimum dalgaboyu 1.46 metre. Urla Gülbahçe ve Seferihisar Sığacık da alternatiflerdir, ancak yerel rehber bulunmamaktadır.\n\n📏 Kuş uçuşu mesafe: Alaçatı 69 km, Urla Gülbahçe 43 km, Seferihisar Sığacık 39 km. Yol mesafesi daha uzun olabilir.\n\nℹ️ Urla Gülbahçe, Seferihisar Sığacık için yerel rehberimiz yok: akıntı, kayalık ve yasak alanlar gibi yerel tehlikeleri orada sor.\n\n⚠️ Tahminler değişebilir. Suya girmeden önce sahilde rüzgârı ve dalgayı kendin kontrol et; emin olmadığında girme.",
+      "seconds": 13.2
     },
     {
-      "topic": "Desteklenmeyen seviye (kod cevaplar)",
-      "question": "Yeni başlıyorum, hafta sonu Alaçatı'ya gitsem olur mu?",
+      "topic": "Başka bir spor ve seviye",
+      "question": "Yarın Akyaka'da SUP yapmak istiyorum, yeni başlıyorum. Uygun mu?",
+      "steps": [
+        {
+          "tool": "check_conditions",
+          "arguments": {
+            "longitude": 29.9116,
+            "day": "2026-11-14",
+            "latitude": 36.5441
+          },
+          "summary": "Hata: These coordinates did not come from find_location. Call find_location with the place name first; never guess coordinates."
+        },
+        {
+          "tool": "find_location",
+          "arguments": {
+            "name": "Akyaka"
+          },
+          "summary": "Akyaka (Muğla); Akyaka (Akyaka İlçesi, Kars); Akyaka (Ardahan, Ardahan); Akyaka (Demirözü İlçesi, Bayburt); Akkaya (Burdur, Burdur)"
+        },
+        {
+          "tool": "check_conditions",
+          "arguments": {
+            "day": "2026-11-14",
+            "latitude": 37.0471,
+            "longitude": 28.3071
+          },
+          "summary": "Hata: The user asked about 2026-11-11, but you sent 2026-11-14. Use the date table and call again."
+        },
+        {
+          "tool": "check_conditions",
+          "arguments": {
+            "day": "2026-11-11",
+            "latitude": 37.0471,
+            "longitude": 28.3071
+          },
+          "summary": "11 Kasım Çarşamba · saatler: good: 11 · en iyi aralık: 08:00-18:00"
+        }
+      ],
+      "llm_text": "Yarın Akyaka'da SUP yapmak için 11 saat uygun (08:00-18:00) ve 0 saat sınırda. Ortalama rüzgar hızı 1.2 knot. Uygun saatlerde rüzgar kuvvetli olmayan ve dalgalar 0.1 metre civarında. Dikkat edilmesi gereken husus: denizde rüzgar, kıyıdan dışarı doğru eser ve sizi kıyıdan uzaklaştırabilir.",
+      "answer": "Yarın Akyaka'da SUP yapmak için 11 saat uygun (08:00-18:00) ve 0 saat sınırda. Ortalama rüzgar hızı 1.2 knot. Uygun saatlerde rüzgar kuvvetli olmayan ve dalgalar 0.1 metre civarında. Dikkat edilmesi gereken husus: denizde rüzgar, kıyıdan dışarı doğru eser ve sizi kıyıdan uzaklaştırabilir.\n\n🌬️ Gündüz 5 saatte rüzgâr karadan denize esiyor (offshore): seni kıyıdan uzaklaştırır. Seviyenin sınırını aşan saatler uygun değil sayıldı.\n\n⚠️ Tahminler değişebilir. Suya girmeden önce sahilde rüzgârı ve dalgayı kendin kontrol et; emin olmadığında girme.",
+      "seconds": 16.6
+    },
+    {
+      "topic": "Desteklenmeyen aktivite (kod cevaplar)",
+      "question": "Hafta sonu Kaş'ta dalış yapmak istiyorum, koşullar nasıl?",
       "steps": [],
       "llm_text": "",
-      "answer": "SpotCast şu an sadece orta seviye rüzgâr sörfü için değerlendirme yapabiliyor. Yeni başlayan seviye rüzgâr sörfü için henüz öneri veremiyorum. Başka bir seviyenin sonuçları sana uygun olmayabilir, o yüzden onları kullanmanı önermiyorum.",
+      "answer": "SpotCast şu an sadece şu sporlar için değerlendirme yapabiliyor: rüzgâr sörfü, uçurtma sörfü, SUP, kano. Bu aktivite için henüz öneri veremiyorum. Başka bir spor ya da seviyenin sonuçları sana uygun olmayabilir, o yüzden onları kullanmanı önermiyorum.",
       "seconds": 1.0
     },
     {
@@ -59,15 +114,14 @@
         {
           "tool": "search_knowledge",
           "arguments": {
-            "question": "Dip akıntısına yakalanırsam ne yapmalıyım",
-            "spot": "Alaçatı"
+            "question": "Dip akıntısına yakalanırsam ne yapmalıyım?"
           },
-          "summary": "Dip Akıntıları → Dip akıntısına yakalanırsan ne yapmalı | Dip Akıntıları → Dip akıntısı: genel güvenlik kuralları | Dip Akıntıları → Dip akıntısı nedir?"
+          "summary": "Dip Akıntıları → Dip akıntısına yakalanırsan ne yapmalı | Dip Akıntıları → Dip akıntısı nedir? | Dip Akıntıları → Dip akıntısı: genel güvenlik kuralları"
         }
       ],
-      "llm_text": "Dip akıntısına yakalanırsan, akıntıyla mücadele etme. Önce akıntının dışına çık, sonra kıyıya doğru yüz. Kaçamıyorsan sırtüstü suyun üstünde kal ya da olduğun yerde suyun üstünde dur. Yardıma ihtiyacın olursa seslen ya da el sallayarak yardım iste. Yüzme bilmeden denize girme ve asla yalnız yüzme. Emin değilsen denize girme.",
-      "answer": "Dip akıntısına yakalanırsan, akıntıyla mücadele etme. Önce akıntının dışına çık, sonra kıyıya doğru yüz. Kaçamıyorsan sırtüstü suyun üstünde kal ya da olduğun yerde suyun üstünde dur. Yardıma ihtiyacın olursa seslen ya da el sallayarak yardım iste. Yüzme bilmeden denize girme ve asla yalnız yüzme. Emin değilsen denize girme.\n\n📖 Kaynak (Dip Akıntıları → Dip akıntısına yakalanırsan ne yapmalı): «Akıntıyla mücadele etme. Önce akıntının dışına çık, sonra kıyıya doğru yüz. Kaçamıyorsan sırtüstü suyun üstünde kal ya da olduğun yerde suyun üstünde dur. Yardıma ihtiyacın olursa seslen ya da el sallayarak yardım iste.»",
-      "seconds": 9.7
+      "llm_text": "Dip akıntısına yakalanırsan, akıntıyla mücadele etme. Önce akıntının dışına çık, sonra kıyıya doğru yüz. Kaçamıyorsan sırtüstü suyun üstünde kal ya da olduğun yerde suyun üstünde dur. Yardıma ihtiyacın olursa seslen ya da el sallayarak yardım iste. Yüzme bilmeden denize girme ve asla yalnız yüzme gibi güvenlik kurallarına dikkat et.",
+      "answer": "Dip akıntısına yakalanırsan, akıntıyla mücadele etme. Önce akıntının dışına çık, sonra kıyıya doğru yüz. Kaçamıyorsan sırtüstü suyun üstünde kal ya da olduğun yerde suyun üstünde dur. Yardıma ihtiyacın olursa seslen ya da el sallayarak yardım iste. Yüzme bilmeden denize girme ve asla yalnız yüzme gibi güvenlik kurallarına dikkat et.\n\n📖 Kaynak (Dip Akıntıları → Dip akıntısına yakalanırsan ne yapmalı): «Akıntıyla mücadele etme. Önce akıntının dışına çık, sonra kıyıya doğru yüz. Kaçamıyorsan sırtüstü suyun üstünde kal ya da olduğun yerde suyun üstünde dur. Yardıma ihtiyacın olursa seslen ya da el sallayarak yardım iste.»",
+      "seconds": 7.5
     },
     {
       "topic": "Güvenlik bilgisi (RAG)",
@@ -82,9 +136,9 @@
           "summary": "Rüzgâr sörfü güvenlik kuralları → Rüzgâr yönü: karadan denize esen rüzgâr (offshore) | Rüzgâr Sörfü Alanı Kuralları → Rüzgâr sörfü alanı kuralları: rüzgâr yönü | Rüzgâr sörfü güvenlik kuralları → Seviyeni bilmek"
         }
       ],
-      "llm_text": "Karadan denize doğru esen rüzgâr (offshore), rüzgâr sörfü yapmak için en tehlikeli rüzgâr yönüdür. Kıyıda rüzgâr zayıf ve yüzey sakin görünür, ancak açıldıkça rüzgâr güçlenir ve düşer ya da yorulursanız rüzgâr size açığa sürükler. Bu nedenle, rüzgâr karadan denize doğru esiyorsa suya girmemek en doğru karardır.",
-      "answer": "Karadan denize doğru esen rüzgâr (offshore), rüzgâr sörfü yapmak için en tehlikeli rüzgâr yönüdür. Kıyıda rüzgâr zayıf ve yüzey sakin görünür, ancak açıldıkça rüzgâr güçlenir ve düşer ya da yorulursanız rüzgâr size açığa sürükler. Bu nedenle, rüzgâr karadan denize doğru esiyorsa suya girmemek en doğru karardır.\n\n📖 Kaynak (Rüzgâr sörfü güvenlik kuralları → Rüzgâr yönü: karadan denize esen rüzgâr (offshore)): «Karadan denize doğru esen rüzgâr (offshore) en tehlikeli rüzgâr yönüdür. Kıyıda rüzgâr zayıf ve yüzey sakin görünür, ama açıldıkça rüzgâr güçlenir. Düşer ya da yorulursan rüzgâr seni açığa sürükler ve kıyıya geri dönmek zorlaşır. Kıyıya paralel (side-shore) veya hafifçe denizden karaya esen (side-onshore) rüzgâr en güvenli ve en uygun yöndür. Tam denizden karaya esen rüzgârda (onshore) suya çıkmak dalgalar yüzünden zordur ama sürüklenme riski azdır.»",
-      "seconds": 10.5
+      "llm_text": "Karadan denize doğru esen rüzgâr (offshore), rüzgâr sörfü yapmak için en tehlikeli rüzgâr yönüdür. Kıyıda rüzgâr zayıf ve yüzey sakin görünür, ama açıldıkça rüzgâr güçlenir. Düşer ya da yorulursan rüzgâr seni açığa sürükler ve kıyıya geri dönmek zorlaşır. Bu nedenle, rüzgâr karadan denize doğru esiyorsa suya girmemek en doğru karardır.",
+      "answer": "Karadan denize doğru esen rüzgâr (offshore), rüzgâr sörfü yapmak için en tehlikeli rüzgâr yönüdür. Kıyıda rüzgâr zayıf ve yüzey sakin görünür, ama açıldıkça rüzgâr güçlenir. Düşer ya da yorulursan rüzgâr seni açığa sürükler ve kıyıya geri dönmek zorlaşır. Bu nedenle, rüzgâr karadan denize doğru esiyorsa suya girmemek en doğru karardır.\n\n📖 Kaynak (Rüzgâr sörfü güvenlik kuralları → Rüzgâr yönü: karadan denize esen rüzgâr (offshore)): «Karadan denize doğru esen rüzgâr (offshore) en tehlikeli rüzgâr yönüdür. Kıyıda rüzgâr zayıf ve yüzey sakin görünür, ama açıldıkça rüzgâr güçlenir. Düşer ya da yorulursan rüzgâr seni açığa sürükler ve kıyıya geri dönmek zorlaşır. Kıyıya paralel (side-shore) veya hafifçe denizden karaya esen (side-onshore) rüzgâr en güvenli ve en uygun yöndür. Tam denizden karaya esen rüzgârda (onshore) suya çıkmak dalgalar yüzünden zordur ama sürüklenme riski azdır.»",
+      "seconds": 10.1
     }
   ]
 }

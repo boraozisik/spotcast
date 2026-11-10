@@ -141,6 +141,23 @@ def locations_within(
     )
 
 
+def plain(text: str) -> str:
+    """'Kuşadası' → 'kusadasi': lower case without Turkish letters, for matching names.
+    Python lowercases "İ" to "i" plus a combining dot, so Turkish capitals go first."""
+    lowered = text.replace("İ", "i").replace("I", "ı").lower().strip()
+    return lowered.translate(str.maketrans("çğıöşüâî", "cgiosuai"))
+
+
+def named(query: str) -> list[Location]:
+    """Known locations whose name is the query or one of its words: "Akyaka", "Kuşadası"."""
+    q = plain(query)
+    return [
+        loc
+        for loc in LOCATIONS
+        if q and q in plain(loc.name).split() + [plain(loc.name)]
+    ]
+
+
 def spots_for(sport: str) -> list[Location]:
     """Guided spots where this sport is done."""
     return [spot for spot in SPOTS if spot.supports(sport)]

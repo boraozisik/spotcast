@@ -30,6 +30,7 @@ from spotcast.locations import (
     distance_km,
     location_near,
     locations_within,
+    named,
 )
 from spotcast.model import load_model, predict_conditions
 from spotcast.profiles import PROFILES, ActivityProfile, get_profile
@@ -185,27 +186,57 @@ class FindLocationArgs(BaseModel):
     name: str = Field(description="Place name in Turkey, e.g. 'Mersin' or 'Alaçatı'")
 
 
+COASTAL_NEARBY_KM = 20  # a known place on the water this close to a geocoded result
+
+
 def find_location(args: FindLocationArgs) -> dict:
+    """SpotCast's own places with this name first (on the water, with shore data), then
+    the geocoder's results. Turkey has many villages called Akyaka: once the agent picked
+    the one in Kars because the windsurf spot in Muğla was not in the geocoder's top 3."""
+    known = [
+        {
+            "name": loc.name,
+            "region": loc.region,
+            "latitude": loc.latitude,
+            "longitude": loc.longitude,
+            "known_spot": True,
+        }
+        for loc in named(args.name)
+    ]
     response = requests.get(
         GEOCODING_URL,
-        params={"name": args.name, "count": 3, "language": "tr", "countryCode": "TR"},
+        params={"name": args.name, "count": 5, "language": "tr", "countryCode": "TR"},
         timeout=REQUEST_TIMEOUT_SECONDS,
     )
     response.raise_for_status()
-    results = response.json().get("results", [])
-    if not results:
-        raise ToolError(f"No place called '{args.name}' was found in Turkey.")
-    return {
-        "places": [
-            {
-                "name": r["name"],
-                "region": ", ".join(x for x in (r.get("admin2"), r.get("admin1")) if x),
-                "latitude": r["latitude"],
-                "longitude": r["longitude"],
+    geocoded = []
+    for r in response.json().get("results", []):
+        if any(
+            distance_km(r["latitude"], r["longitude"], k["latitude"], k["longitude"])
+            < 3
+            for k in known
+        ):
+            continue  # the same place as one of ours
+        place = {
+            "name": r["name"],
+            "region": ", ".join(x for x in (r.get("admin2"), r.get("admin1")) if x),
+            "latitude": r["latitude"],
+            "longitude": r["longitude"],
+        }
+        # A town centre is on land: point to our nearest place on the water, if close
+        nearby = locations_within(r["latitude"], r["longitude"], COASTAL_NEARBY_KM)
+        if nearby:
+            loc, km = nearby[0]
+            place["coastal_place_nearby"] = {
+                "name": loc.name,
+                "distance_km": round(km),
+                "latitude": loc.latitude,
+                "longitude": loc.longitude,
             }
-            for r in results
-        ]
-    }
+        geocoded.append(place)
+    if not known and not geocoded:
+        raise ToolError(f"No place called '{args.name}' was found in Turkey.")
+    return {"places": known + geocoded}
 
 
 # ---------- Tool 2: check_conditions (any place) ----------
@@ -331,6 +362,10 @@ def assess_day(
             "avg_wind_knots": round(float(best.iloc[0]["avg_wind_kn"]), 1),
         },
         "local_guide_spot": spot.name if km <= SPOT_GUIDE_RADIUS_KM else None,
+        # Offshore daylight hours: counted as a danger, or in a sheltered bay (explained)
+        "shore_known": not hours["shore_facing"].isna().all(),
+        "offshore_hours": 0 if sheltered else daylight_offshore,
+        "sheltered_offshore_hours": daylight_offshore if sheltered else 0,
         "warnings": warnings,
     }
 
@@ -515,7 +550,8 @@ TOOLS = [
     Tool(
         "find_location",
         "Find coordinates of a place in Turkey by its name. Use it before check_conditions "
-        "when the user names a place.",
+        "when the user names a place. SpotCast's own places come first (known_spot): they "
+        "are on the water and have shore data.",
         FindLocationArgs,
         find_location,
     ),

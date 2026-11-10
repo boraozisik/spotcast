@@ -4,13 +4,21 @@ import { useMemo, useState } from "react";
 
 import { compass, knots } from "@/lib/format";
 import { formatDay, useT } from "@/lib/i18n";
-import type { Label, Meta, Spot } from "@/lib/types";
+import type { Label, Meta, Profile, Spot } from "@/lib/types";
 
 import { HourlyBars } from "./HourlyBars";
 import { Card, LabelBadge } from "./ui";
 
 /** One guided spot: pick a day, see its daylight hours as bars. */
-export function SpotForecast({ spot, meta }: { spot: Spot; meta: Meta }) {
+export function SpotForecast({
+  spot,
+  limits,
+  info,
+}: {
+  spot: Spot;
+  limits: Profile;
+  info?: NonNullable<Meta["spots"]>[number];
+}) {
   const { lang, t } = useT();
   const days = useMemo(() => {
     const byDay = new Map<string, Spot["hours"]>();
@@ -34,7 +42,12 @@ export function SpotForecast({ spot, meta }: { spot: Spot; meta: Meta }) {
   return (
     <Card className="min-w-0">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h3 className="text-lg font-semibold">{spot.name}</h3>
+        <div>
+          <h3 className="text-lg font-semibold">{spot.name}</h3>
+          {info?.sheltered && (
+            <span className="text-xs font-medium text-sky-700">⚓ {t.home.spots.sheltered}</span>
+          )}
+        </div>
         <div className="flex flex-wrap gap-1">
           {(["good", "marginal", "bad"] as const).map(
             (label) => counts[label] && <LabelBadge key={label} label={label} count={counts[label]} />,
@@ -56,10 +69,15 @@ export function SpotForecast({ spot, meta }: { spot: Spot; meta: Meta }) {
       </div>
       {date && (
         <>
+          {info?.sports && !info.sports.includes(limits.sport) && (
+            <p className="mb-2 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900">
+              🚫 {t.home.spots.notForSport(t.sports[limits.sport])}
+            </p>
+          )}
           <HourlyBars
             bars={hours.map((h) => ({ ...h, hour: h.time.slice(11, 16) }))}
-            idealMin={meta.profile.good_wind_min_kn}
-            idealMax={meta.profile.good_wind_max_kn}
+            idealMin={limits.good_wind_min_kn}
+            idealMax={limits.good_wind_max_kn}
           />
           {strongest && (
             <p className="text-sm text-slate-600">

@@ -187,3 +187,42 @@ def test_spot_hours_start_at_the_current_hour():
     spots = publish.build_spots(predicted, datetime(2026, 11, 5, 13, 30))
     alacati = next(s for s in spots if s["name"] == "Alaçatı")
     assert alacati["hours"][0]["time"] == "2026-11-05T13:00"
+
+
+def test_new_note_codes_and_the_legacy_filter():
+    alacati = publish.BY_NAME["Alaçatı"]  # no kayak in its guide
+    assessment = {
+        "label_counts": {"good": 3},
+        "local_guide_spot": "Alaçatı",
+        "shore_known": True,
+        "offshore_hours": 0,
+        "sheltered_offshore_hours": 4,
+        "days_ahead": 1,
+    }
+    kayak = publish.get_profile("kayak", "beginner")
+    notes = publish.site_notes(assessment, alacati, kayak)
+    assert {"code": "not_for_sport"} in notes
+    assert {"code": "sheltered_offshore", "hours": 4} in notes
+
+    # The first site version would show unknown codes as "no local guide": filter them
+    place = {"name": "Alaçatı", "days": [{"date": "2026-11-06", "notes": notes}]}
+    [legacy] = publish.legacy_places([place])
+    assert legacy["days"][0]["notes"] == []
+    assert place["days"][0]["notes"] == notes  # the new file keeps them
+
+
+def test_one_forecast_gives_different_verdicts_per_profile():
+    forecast_rows = forecast(days=2).assign(
+        spot="Alaçatı", shore_facing=120.0, sheltered=True
+    )
+    files = {
+        p: publish.build_profile(
+            publish.get_profile(*p), BUNDLE, forecast_rows, {}, NOW
+        )
+        for p in [("windsurf", "intermediate"), ("sup", "beginner")]
+    }
+    windsurf = files[("windsurf", "intermediate")]["places.json"][1]["days"][0]
+    sup = files[("sup", "beginner")]["places.json"][1]["days"][0]
+    # 18 kn: fine for an intermediate windsurfer, above the 10 kn limit of a beginner SUP
+    assert windsurf["label_counts"].get("good")
+    assert set(sup["label_counts"]) == {"bad"}

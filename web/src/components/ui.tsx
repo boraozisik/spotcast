@@ -35,6 +35,16 @@ export function PageTitle({ title, lead }: { title: string; lead?: ReactNode }) 
   );
 }
 
+const NOTE_ICON: Record<Note["code"], string> = {
+  lead_time: "⏳",
+  no_waves: "🌊",
+  no_guide: "ℹ️",
+  not_for_sport: "🚫",
+  no_shore: "❔",
+  offshore: "🌬️",
+  sheltered_offshore: "⚓",
+};
+
 /** Warnings built by code from facts (never by an LLM), worded in the visitor's language. */
 export function Notes({ notes }: { notes: Note[] }) {
   const { t } = useT();
@@ -46,7 +56,7 @@ export function Notes({ notes }: { notes: Note[] }) {
           key={note.code}
           className="flex gap-2 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900"
         >
-          <span aria-hidden>⏳</span>
+          <span aria-hidden>{NOTE_ICON[note.code] ?? "ℹ️"}</span>
           <span>{t.note(note)}</span>
         </li>
       ))}

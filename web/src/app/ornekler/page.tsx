@@ -27,6 +27,7 @@ export default function AssistantPage() {
         <ul className="mt-2 list-disc space-y-1 pl-5">
           <li>{t.assistant.howTools}</li>
           <li>{t.assistant.howCode}</li>
+          <li>{t.assistant.howChecks}</li>
         </ul>
         {t.assistant.translated && <p className="mt-3 text-slate-500">{t.assistant.translated}</p>}
       </Card>

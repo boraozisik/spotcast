@@ -16,13 +16,14 @@ import re
 import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
 from spotcast.explain import CAUTION, turkish_date
 from spotcast.llm import chat, chat_with_tools
+from spotcast.locations import LOCATIONS, distance_km
 from spotcast.profiles import LEVELS, PROFILES, SPORTS
 from spotcast.tools import CONDITION_TOOLS, TOOLS, TOOLS_BY_NAME, ProfileArgs, Tool
 from spotcast.uncertainty import notes_for_results
@@ -38,7 +39,10 @@ Use the tools to get facts. Never guess wind, waves, coordinates or dates yourse
   → find_location, then recommend_near with those coordinates. Distances are
   straight-line (kuş uçuşu): say so.
 - Advice or safety questions → search_knowledge.
-If find_location returns several places, pick the coastal one that matches the question.
+If find_location returns several places, pick the coastal one that matches the question;
+prefer a known_spot. A town centre is on land: for check_conditions use its
+coastal_place_nearby coordinates when there is one; for recommend_near start from the
+town itself.
 Use the date table below to turn day names into dates; do not calculate dates yourself.
 
 Answer rules:
@@ -128,10 +132,16 @@ SPORT_WORDS = {
     "kayak": r"\bkano|kayaking|sea kayak",
 }
 LEVEL_WORDS = {
-    "beginner": r"yeni başla|acemi|başlangıç|ilk kez|ilk defa|hiç yapmadım|beginner",
+    # "yeni başl": başlayan, başlıyorum, başladım ("yeni başla" missed "başlıyorum")
+    "beginner": r"yeni başl|acemi|başlangıç|ilk kez|ilk defa|hiç yapmadım|beginner",
     "intermediate": r"\borta\b|intermediate",
     "advanced": r"ileri seviye|\bileri\b|deneyimli|uzman|advanced",
 }
+
+
+# Activities SpotCast has no profile for. A small LLM once read "dalış" (diving) as SUP and
+# answered with SUP limits, so code recognises these and the request is refused.
+OTHER_ACTIVITIES = r"\bdal(ış|ma|mak|acağ|ıyor)|scuba|ş?norkel|jet ?ski|balık (avı|tut)"
 
 
 def _match(words: dict[str, str], text: str) -> str | None:
@@ -143,6 +153,8 @@ def read_profile(question: str, ask: Callable[..., UserProfile] = chat) -> UserP
     # Python lowercases "İ" to "i" plus a combining dot, so map Turkish capitals first
     text = question.replace("İ", "i").replace("I", "ı").lower()
     sport, level = _match(SPORT_WORDS, text), _match(LEVEL_WORDS, text)
+    if sport is None and re.search(OTHER_ACTIVITIES, text):
+        sport = "other"
     if sport is None or level is None:
         messages = [
             {"role": "system", "content": PROFILE_PROMPT},
@@ -222,6 +234,105 @@ def run_tool(name: str, arguments: Any, sport: str, level: str) -> dict:
 
 GAVE_UP = "Üzgünüm, bu soruyu cevaplayamadım. Lütfen daha açık bir şekilde sor."
 
+# ---------- Rules on tool calls that code checks (the prompt asks; code makes sure) ----------
+
+COORDINATE_TOOLS = {"check_conditions", "recommend_near"}
+COORDINATES_FROM_KM = (
+    2  # coordinates this close to a known point count as "not guessed"
+)
+# Day words in a question. "pazar" is not "pazartesi", "cuma" is not "cumartesi".
+WEEKDAY_WORDS = [
+    r"\bpazartesi",
+    r"\bsalı",
+    r"\bçarşamba",
+    r"\bperşembe",
+    r"\bcuma(?!rtesi)",
+    r"\bcumartesi",
+    r"\bpazar(?!tesi)",
+]
+
+
+def days_mentioned(question: str, now: datetime) -> set[date]:
+    """The days the user named, as dates in the next 7 days. Empty: no day was named."""
+    text = question.replace("İ", "i").replace("I", "ı").lower()
+    today = now.date()
+    days = set()
+    if re.search(r"\bbugün", text):
+        days.add(today)
+    if re.search(r"\byarın", text):
+        days.add(today + timedelta(days=1))
+    weekdays = {i for i, word in enumerate(WEEKDAY_WORDS) if re.search(word, text)}
+    if re.search(r"hafta ?sonu", text):
+        weekdays |= {5, 6}
+    days |= {today + timedelta(days=(wd - today.weekday()) % 7) for wd in weekdays}
+    return days
+
+
+def known_points(results: list[Any]) -> list[tuple[float, float]]:
+    """Every latitude/longitude pair inside earlier tool results (find_location etc.)."""
+    points = []
+
+    def walk(value: Any) -> None:
+        if isinstance(value, dict):
+            lat, lon = value.get("latitude"), value.get("longitude")
+            if isinstance(lat, int | float) and isinstance(lon, int | float):
+                points.append((float(lat), float(lon)))
+            for item in value.values():
+                walk(item)
+        elif isinstance(value, list):
+            for item in value:
+                walk(item)
+
+    walk(results)
+    return points
+
+
+def check_call(
+    name: str, arguments: Any, question: str, now: datetime, earlier: list[Any]
+) -> dict | None:
+    """An error for the LLM if a tool call breaks a rule code can check, else None.
+
+    - Coordinates must come from find_location or our own places: the LLM once skipped
+      find_location and made up coordinates for Akyaka (they were near Bodrum).
+    - The day must be the one the user named: "yarın" was sent as a Saturday.
+    """
+    if isinstance(arguments, str):
+        try:
+            arguments = json.loads(arguments)
+        except json.JSONDecodeError:
+            return None  # run_tool reports it
+    if not isinstance(arguments, dict):
+        return None
+
+    lat, lon = arguments.get("latitude"), arguments.get("longitude")
+    if (
+        name in COORDINATE_TOOLS
+        and isinstance(lat, int | float)
+        and isinstance(lon, int | float)
+    ):
+        points = known_points(earlier) + [
+            (loc.latitude, loc.longitude) for loc in LOCATIONS
+        ]
+        if not any(distance_km(lat, lon, *p) <= COORDINATES_FROM_KM for p in points):
+            return {
+                "error": "These coordinates did not come from find_location. Call "
+                "find_location with the place name first; never guess coordinates."
+            }
+
+    expected = days_mentioned(question, now)
+    if expected and arguments.get("day"):
+        try:
+            day = date.fromisoformat(str(arguments["day"]))
+        except ValueError:
+            return None  # the tool's own validation reports it
+        if day not in expected:
+            wanted = ", ".join(f"{d:%Y-%m-%d}" for d in sorted(expected))
+            return {
+                "error": f"The user asked about {wanted}, but you sent {day:%Y-%m-%d}. "
+                "Use the date table and call again."
+            }
+    return None
+
 
 @dataclass(frozen=True)
 class Who:
@@ -281,6 +392,26 @@ def nearby_notes(steps: list[Step]) -> list[str]:
     return notes
 
 
+def offshore_notes(conditions: list[dict]) -> list[str]:
+    """What offshore means, written by code: an LLM once described it the wrong way round
+    ("wind blowing from the sea inland")."""
+    unsafe = sum(r.get("offshore_hours", 0) for r in conditions)
+    sheltered = sum(r.get("sheltered_offshore_hours", 0) for r in conditions)
+    notes = []
+    if unsafe:
+        notes.append(
+            f"🌬️ Gündüz {unsafe} saatte rüzgâr karadan denize esiyor (offshore): seni "
+            f"kıyıdan uzaklaştırır. Seviyenin sınırını aşan saatler uygun değil sayıldı."
+        )
+    if sheltered:
+        notes.append(
+            f"⚓ Gündüz {sheltered} saatte rüzgâr karadan esiyor ama burası korunaklı bir koy: "
+            f"sürüklenirsen açık denize değil koyun karşı kıyısına varırsın. Yine de "
+            f"rüzgâr açıkta daha sert ve hamlelidir, koyun içinde kal."
+        )
+    return notes
+
+
 def finish_answer(content: str, steps: list[Step], level_note: str) -> str:
     """Add the texts that code writes, never the LLM: level note, caution, source quote."""
     answer = content.strip()
@@ -293,7 +424,7 @@ def finish_answer(content: str, steps: list[Step], level_note: str) -> str:
         # warnings on, but asking is not a guarantee, so code adds them too.
         for note in notes_for_results(conditions):
             answer += f"\n\n⏳ {note}"
-        for note in nearby_notes(steps):
+        for note in nearby_notes(steps) + offshore_notes(conditions):
             answer += f"\n\n{note}"
         answer += f"\n\n⚠️ {CAUTION}"
     return answer + quoted_source(steps)
@@ -338,7 +469,10 @@ def run_agent(
             name = call["function"]["name"]
             arguments = call["function"].get("arguments", {})
             started = time.monotonic()
-            result = run_tool(name, arguments, sport, level)
+            earlier = [s.result for s in steps]
+            result = check_call(name, arguments, question, now, earlier) or run_tool(
+                name, arguments, sport, level
+            )
             step = Step(name, arguments, result, time.monotonic() - started)
             steps.append(step)
             if on_step:

@@ -22,10 +22,17 @@ QUESTIONS = [
         "Bilinen spotlar dışındaki bir yer",
         "Cumartesi Mersin sahilinde rüzgâr sörfü yapmak istiyorum, orta seviyedeyim. Uygun mu?",
     ),
-    ("Öneri", "Bu hafta sonu rüzgâr sörfü için nereye gideyim? Orta seviyedeyim."),
     (
-        "Desteklenmeyen seviye (kod cevaplar)",
-        "Yeni başlıyorum, hafta sonu Alaçatı'ya gitsem olur mu?",
+        "Yakınımdaki yerler",
+        "İzmir'de yaşıyorum, cumartesi rüzgâr sörfü için nereye gideyim? Orta seviyedeyim.",
+    ),
+    (
+        "Başka bir spor ve seviye",
+        "Yarın Akyaka'da SUP yapmak istiyorum, yeni başlıyorum. Uygun mu?",
+    ),
+    (
+        "Desteklenmeyen aktivite (kod cevaplar)",
+        "Hafta sonu Kaş'ta dalış yapmak istiyorum, koşullar nasıl?",
     ),
     ("Güvenlik bilgisi (RAG)", "Dip akıntısına yakalanırsam ne yapmalıyım?"),
     (
@@ -49,6 +56,12 @@ def summarize(step: Step) -> str:
     if step.tool == "recommend_spots":
         return " | ".join(
             f"{w['spot']} {w['day']} {w['hours']} (uygun {w['good_hours']}, sınırda {w['marginal_hours']})"
+            for w in r["windows_best_first"]
+        )
+    if step.tool == "recommend_near":
+        return " | ".join(
+            f"{w['spot']} ({w['distance_km']} km) {w['day']} {w['hours']} "
+            f"(uygun {w['good_hours']}, sınırda {w['marginal_hours']})"
             for w in r["windows_best_first"]
         )
     if step.tool == "search_knowledge":

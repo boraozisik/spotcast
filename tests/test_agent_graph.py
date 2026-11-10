@@ -1,5 +1,7 @@
 """Tests for the LangGraph version of the agent. A fake chat model replays scripted replies."""
 
+from datetime import datetime
+
 from langchain_core.messages import AIMessage, SystemMessage
 from langgraph.checkpoint.memory import MemorySaver
 
@@ -79,18 +81,30 @@ def test_follow_up_remembers_the_conversation(monkeypatch):
         TOOLS_BY_NAME, "check_conditions", FakeTool({"label_counts": {}})
     )
     llm = FakeChatModel(
+        # Mezitli: one of our places, so the coordinates are not "guessed"
         calls_tool(
-            "check_conditions", "1", latitude=36.8, longitude=34.6, day="2026-11-07"
+            "check_conditions",
+            "1",
+            latitude=36.7341,
+            longitude=34.5304,
+            day="2026-11-07",
         ),
         AIMessage("Cumartesi uygun değil."),
         calls_tool(
-            "check_conditions", "2", latitude=36.8, longitude=34.6, day="2026-11-08"
+            "check_conditions",
+            "2",
+            latitude=36.7341,
+            longitude=34.5304,
+            day="2026-11-08",
         ),
         AIMessage("Pazar da uygun değil."),
     )
     said = iter([UserProfile(sport="windsurf", level="unknown")] * 2)
     app = build_graph(
-        llm=llm, profile_reader=lambda q: next(said), checkpointer=MemorySaver()
+        llm=llm,
+        profile_reader=lambda q: next(said),
+        checkpointer=MemorySaver(),
+        clock=lambda: datetime(2026, 11, 5, 8, 0),  # Thursday: Saturday is the 7th
     )
 
     ask(app, "Cumartesi Mersin?", thread_id="t1")

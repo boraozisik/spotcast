@@ -2,23 +2,28 @@
 
 import { LABEL_STYLE, knots, metres } from "@/lib/format";
 import { useT } from "@/lib/i18n";
-import type { Label } from "@/lib/types";
+import type { Label, ShoreWind } from "@/lib/types";
 
 export interface Bar {
   hour: string; // "14:00"
   wind_knots: number;
   wave_metres: number | null;
+  shore_wind?: ShoreWind;
   label: Label;
 }
 
-const MAX_KNOTS = 30;
-const HEIGHT = 120;
+// The scale follows the profile: SUP's comfortable range is 0-6 knots, windsurf's 15-25
+const MIN_SCALE_KNOTS = 10;
+const MAX_SCALE_KNOTS = 40;
+const TOP = 12; // room for the offshore marker above the tallest bar
+const HEIGHT = 120 + TOP;
 const BAR = 22;
 const GAP = 6;
 
 /**
- * Wind per hour as bars, coloured by SpotCast's verdict. Dashed lines mark the ideal
- * wind range of the profile (e.g. 15-25 knots), so the reason for a colour is visible.
+ * Wind per hour as bars, coloured by SpotCast's verdict. Dashed lines mark the comfortable
+ * wind range of the chosen profile (e.g. 15-25 knots), so the reason for a colour is
+ * visible. ▼ above a bar: the wind blows from the land (offshore).
  */
 export function HourlyBars({
   bars,
@@ -31,7 +36,11 @@ export function HourlyBars({
 }) {
   const { lang, t } = useT();
   const width = bars.length * (BAR + GAP);
-  const y = (kn: number) => HEIGHT - (Math.min(kn, MAX_KNOTS) / MAX_KNOTS) * HEIGHT;
+  const scale = Math.min(
+    MAX_SCALE_KNOTS,
+    Math.ceil(Math.max(MIN_SCALE_KNOTS, idealMax * 1.2, ...bars.map((b) => b.wind_knots)) / 5) * 5,
+  );
+  const y = (kn: number) => HEIGHT - (Math.min(kn, scale) / scale) * (HEIGHT - TOP);
 
   return (
     <div>
@@ -63,8 +72,14 @@ export function HourlyBars({
           return (
             <g key={bar.hour}>
               <title>
-                {`${bar.hour}: ${knots(bar.wind_knots, lang, t)}, ${metres(bar.wave_metres, lang)}, ${t.labels[bar.label]}`}
+                {`${bar.hour}: ${knots(bar.wind_knots, lang, t)}, ${metres(bar.wave_metres, lang)}, ${t.labels[bar.label]}` +
+                  (bar.shore_wind && bar.shore_wind !== "unknown" ? `, ${t.shoreWind[bar.shore_wind]}` : "")}
               </title>
+              {bar.shore_wind === "offshore" && (
+                <text x={x + BAR / 2} y={top - 3} textAnchor="middle" className="fill-rose-600 text-[10px]">
+                  ▼
+                </text>
+              )}
               <rect
                 x={x}
                 y={top}
