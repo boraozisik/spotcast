@@ -40,6 +40,10 @@ class ActivityProfile:
     # saved bundles working: their profiles were pickled before this field existed.
     ideal_wind_kn: float | None = None
 
+    # Offshore wind (from land to sea) above this is unsafe. None: no offshore rule (old
+    # saved profiles). 0: never in offshore wind.
+    max_offshore_wind_kn: float | None = None
+
     def __post_init__(self) -> None:
         """Reject impossible profiles as soon as one is created."""
         for f in fields(self):
@@ -71,6 +75,10 @@ class ActivityProfile:
             self.good_wind_min_kn <= self.ideal_wind_kn <= self.good_wind_max_kn
         ):
             raise ProfileError("ideal_wind must be inside the good wind range")
+        if self.max_offshore_wind_kn is not None and not (
+            0 <= self.max_offshore_wind_kn <= self.max_wind_kn
+        ):
+            raise ProfileError("max_offshore_wind must be between 0 and max_wind")
 
     @property
     def name(self) -> str:

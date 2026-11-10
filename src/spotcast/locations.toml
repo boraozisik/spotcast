@@ -9,9 +9,24 @@
 #   guide      optional: local guide in knowledge/ (e.g. "spots/alacati.md"). A location
 #              with a guide is a "spot": curated, with a training history. Without one it
 #              is a "place": assessed from the forecast alone.
+#   shore_facing  compass direction from the beach to the open water (south-facing: 180).
+#              Decides when the wind is offshore (from the land out to sea). Without it
+#              the offshore rule can't be checked, and the tools say so.
+#   sheltered  optional, default false: a closed bay. Offshore wind there pushes you across
+#              the bay to another shore, not out to the open sea, so offshore hours are
+#              not marked unsafe for that reason alone; every answer explains it in a
+#              warning. Max wind, max waves and darkness still apply. Set it only where
+#              someone who knows the place confirms it.
+#   sports     optional: the sports done here. Without it no sport is excluded (we don't
+#              know); recommendations skip spots whose list doesn't have the sport.
 #
-# Adding a location is one [[location]] block. Check first that the point gets wave data
-# (Open-Meteo marine returns nothing for points on land).
+# Adding a location is one block. The point must be ON THE WATER, a few hundred metres off
+# the beach. The wave forecast is no check: its grid is kilometres wide, so it also returns
+# data for points on land. Run scripts/shore_facing.py: it says land or sea, suggests a
+# point at sea and computes shore_facing.
+#
+# Coordinates and shore_facing were checked against the OpenStreetMap coastline in Stage 11
+# (15 of 29 points were on land). Coastline data © OpenStreetMap contributors, ODbL.
 #
 # Keep the three spots first and in this order: the trained wind models (Stage 3) see the
 # spot as a category in this order.
@@ -21,22 +36,32 @@
 [[location]]
 name = "Kuşadası Pamucak"
 region = "Aydın"
-latitude = 37.94
-longitude = 27.27
+latitude = 37.9406
+longitude = 27.2703
+shore_facing = 255
+sports = ["windsurf", "kitesurf", "sup", "kayak"]
 guide = "spots/kusadasi_pamucak.md"
 
 [[location]]
 name = "Alaçatı"
 region = "İzmir"
-latitude = 38.255
-longitude = 26.375
+latitude = 38.243
+longitude = 26.38
+shore_facing = 120
+# The windsurf beach faces east-southeast, so westerly and north-westerly wind blows from
+# the land (a third of the windy hours). The bay is closed: a drifting rider reaches its
+# eastern shore. Confirmed by Bora (Stage 11).
+sheltered = true
+sports = ["windsurf", "kitesurf", "sup"]
 guide = "spots/alacati.md"
 
 [[location]]
 name = "Akyaka"
 region = "Muğla"
-latitude = 37.04
-longitude = 28.31
+latitude = 37.0471
+longitude = 28.3071
+shore_facing = 175
+sports = ["windsurf", "kitesurf", "sup", "kayak"]
 guide = "spots/akyaka.md"
 
 # --- Coastal places (no local guide yet) ---
@@ -44,155 +69,181 @@ guide = "spots/akyaka.md"
 [[location]]
 name = "Mezitli sahili"
 region = "Mersin"
-latitude = 36.735
-longitude = 34.530
+latitude = 36.7341
+longitude = 34.5304
+shore_facing = 160
 
 [[location]]
 name = "Karataş"
 region = "Adana"
-latitude = 36.555
-longitude = 35.385
+latitude = 36.5546
+longitude = 35.3854
+shore_facing = 140
 
 [[location]]
 name = "İskenderun"
 region = "Hatay"
-latitude = 36.600
-longitude = 36.170
+latitude = 36.5962
+longitude = 36.1736
+shore_facing = 10
 
 [[location]]
 name = "Konyaaltı"
 region = "Antalya"
-latitude = 36.855
-longitude = 30.620
+latitude = 36.8495
+longitude = 30.626
+shore_facing = 135
 
 [[location]]
 name = "Kemer"
 region = "Antalya"
-latitude = 36.600
-longitude = 30.570
+latitude = 36.6017
+longitude = 30.5724
+shore_facing = 40
 
 [[location]]
 name = "Side"
 region = "Antalya"
-latitude = 36.765
-longitude = 31.385
+latitude = 36.7638
+longitude = 31.3824
+shore_facing = 240
 
 [[location]]
 name = "Alanya"
 region = "Antalya"
-latitude = 36.535
-longitude = 31.990
+latitude = 36.5346
+longitude = 31.9867
+shore_facing = 230
 
 [[location]]
 name = "Kaş"
 region = "Antalya"
 latitude = 36.195
-longitude = 29.640
+longitude = 29.6402
+shore_facing = 205
 
 [[location]]
 name = "Fethiye Çalış"
 region = "Muğla"
-latitude = 36.665
-longitude = 29.095
+latitude = 36.6677
+longitude = 29.1016
+shore_facing = 235
 
 [[location]]
 name = "Marmaris"
 region = "Muğla"
-latitude = 36.840
-longitude = 28.270
+latitude = 36.8473
+longitude = 28.2741
+shore_facing = 185
 
 [[location]]
 name = "Datça"
 region = "Muğla"
 latitude = 36.725
-longitude = 27.685
+longitude = 27.6892
+shore_facing = 100
 
 [[location]]
 name = "Bodrum Bitez"
 region = "Muğla"
-latitude = 37.025
-longitude = 27.390
+latitude = 37.0228
+longitude = 27.3938
+shore_facing = 140
 
 [[location]]
 name = "Didim Altınkum"
 region = "Aydın"
-latitude = 37.350
-longitude = 27.260
+latitude = 37.3422
+longitude = 27.2654
+shore_facing = 150
 
 [[location]]
 name = "Seferihisar Sığacık"
 region = "İzmir"
-latitude = 38.195
-longitude = 26.785
+latitude = 38.1971
+longitude = 26.7813
+shore_facing = 280
 
 [[location]]
 name = "Urla Gülbahçe"
 region = "İzmir"
-latitude = 38.355
-longitude = 26.640
+latitude = 38.3541
+longitude = 26.6469
+shore_facing = 100
 
 [[location]]
 name = "Foça"
 region = "İzmir"
-latitude = 38.665
-longitude = 26.745
+latitude = 38.6702
+longitude = 26.7404
+shore_facing = 325
 
 [[location]]
 name = "Ayvalık Sarımsaklı"
 region = "Balıkesir"
-latitude = 39.245
-longitude = 26.665
+latitude = 39.2651
+longitude = 26.6664
+shore_facing = 180
 
 [[location]]
 name = "Assos"
 region = "Çanakkale"
-latitude = 39.485
-longitude = 26.335
+latitude = 39.4828
+longitude = 26.3361
+shore_facing = 160
 
 [[location]]
 name = "Bozcaada"
 region = "Çanakkale"
-latitude = 39.825
-longitude = 26.040
+latitude = 39.8438
+longitude = 26.0377
+shore_facing = 350
 
 [[location]]
 name = "Gökçeada Aydıncık"
 region = "Çanakkale"
-latitude = 40.130
-longitude = 25.965
+latitude = 40.1237
+longitude = 25.9674
+shore_facing = 160
 
 [[location]]
 name = "Kilyos"
 region = "İstanbul"
-latitude = 41.255
-longitude = 29.030
+latitude = 41.2581
+longitude = 29.0355
+shore_facing = 330
 
 [[location]]
 name = "Şile"
 region = "İstanbul"
-latitude = 41.180
-longitude = 29.610
+latitude = 41.1842
+longitude = 29.608
+shore_facing = 335
 
 [[location]]
 name = "Akçakoca"
 region = "Düzce"
-latitude = 41.090
-longitude = 31.120
+latitude = 41.0945
+longitude = 31.1195
+shore_facing = 355
 
 [[location]]
 name = "Sinop"
 region = "Sinop"
-latitude = 42.020
-longitude = 35.160
+latitude = 42.0179
+longitude = 35.159
+shore_facing = 200
 
 [[location]]
 name = "Atakum"
 region = "Samsun"
-latitude = 41.335
-longitude = 36.265
+latitude = 41.3417
+longitude = 36.2702
+shore_facing = 30
 
 [[location]]
 name = "Trabzon"
 region = "Trabzon"
-latitude = 41.010
-longitude = 39.720
+latitude = 41.0153
+longitude = 39.7202
+shore_facing = 0

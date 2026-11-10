@@ -1,5 +1,6 @@
 """Fetching wind and wave data from Open-Meteo, and caching history as Parquet."""
 
+import hashlib
 import time
 from datetime import date
 
@@ -15,6 +16,7 @@ from spotcast.config import (
     TIMEZONE,
 )
 from spotcast.locations import SPOTS, Location
+from spotcast.shore import with_shore_facing
 
 
 def _fetch_hourly(
@@ -136,8 +138,17 @@ def fetch_all_spots(
     for spot in spots:
         df = fetch_conditions(spot.latitude, spot.longitude, start, end)
         df.insert(0, "spot", spot.name)
+        df["shore_facing"] = spot.shore_facing  # for the offshore rule (None: unknown)
+        df["sheltered"] = spot.sheltered
         frames.append(df)
     return pd.concat(frames, ignore_index=True)
+
+
+def spots_fingerprint(spots: list[Location]) -> str:
+    """A short code that changes when a spot is added, removed or moved. It is part of the
+    cache file name, so history fetched for old coordinates is never used by mistake."""
+    text = ";".join(f"{s.name}:{s.latitude}:{s.longitude}" for s in spots)
+    return hashlib.sha256(text.encode()).hexdigest()[:8]
 
 
 def load_history(start: date, end: date, refresh: bool = False) -> pd.DataFrame:
@@ -146,15 +157,18 @@ def load_history(start: date, end: date, refresh: bool = False) -> pd.DataFrame:
     The first call fetches from the API and saves the file; later calls read the file.
     Pass refresh=True to ignore the file and fetch again.
     """
-    path = DATA_DIR / f"history_{start}_{end}.parquet"
+    path = DATA_DIR / f"history_{start}_{end}_{spots_fingerprint(SPOTS)}.parquet"
 
     if path.exists() and not refresh:
         print(f"Loading cached history from {path.name}")
-        return pd.read_parquet(path)
-
-    print("Fetching history from the API...")
-    df = fetch_all_spots(SPOTS, start, end)
-    DATA_DIR.mkdir(exist_ok=True)
-    df.to_parquet(path, index=False)
-    print(f"Saved {len(df)} rows to {path.name}")
-    return df
+        df = pd.read_parquet(path)
+    else:
+        print("Fetching history from the API...")
+        df = fetch_all_spots(SPOTS, start, end)
+        DATA_DIR.mkdir(exist_ok=True)
+        df.to_parquet(path, index=False)
+        print(f"Saved {len(df)} rows to {path.name}")
+    # The shore direction always comes from today's locations.toml, never from the cache
+    return with_shore_facing(
+        df.drop(columns=["shore_facing", "sheltered"], errors="ignore")
+    )

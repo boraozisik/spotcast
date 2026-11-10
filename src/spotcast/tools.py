@@ -24,10 +24,11 @@ from pydantic import BaseModel, Field, ValidationError, field_validator
 from spotcast.config import REQUEST_TIMEOUT_SECONDS
 from spotcast.data import fetch_all_spots, fetch_conditions
 from spotcast.explain import turkish_date
-from spotcast.locations import SPOTS, Location
+from spotcast.locations import SPOTS, Location, location_near
 from spotcast.model import load_model, predict_conditions
 from spotcast.profiles import PROFILES, ActivityProfile, get_profile
 from spotcast.recommend import Preferences, find_windows, recommend
+from spotcast.shore import offshore_flags, shore_wind
 from spotcast.uncertainty import days_ahead, lead_time_note
 
 # Only the sports and levels we have profiles for. In the schema these become a list of
@@ -247,6 +248,12 @@ def assess_day(
     fetches a place once and assesses all 7 days with this."""
     hours = forecast[forecast["time"].dt.date == day].copy()
     hours.insert(0, "spot", "requested place")  # find_windows groups hours by spot
+    if "shore_facing" not in hours:  # known only at (or right next to) our locations
+        here = location_near(latitude, longitude)
+        facing = here.shore_facing if here else None
+        hours["shore_facing"] = float("nan") if facing is None else facing
+        hours["sheltered"] = bool(here and here.sheltered)
+    sheltered = "sheltered" in hours and bool(hours["sheltered"].any())
     has_waves = hours["wave_height"].notna()
 
     # The model needs wave height. Without it we report the wind but give no verdict.
@@ -266,6 +273,7 @@ def assess_day(
     best = windows.sort_values("score", ascending=False).head(1)
 
     spot, km = nearest_spot(latitude, longitude)
+    daylight_offshore = int(offshore_flags(daylight).sum())
     warnings = []
     if not has_waves.all():
         warnings.append(
@@ -274,6 +282,25 @@ def assess_day(
     if km > SPOT_GUIDE_RADIUS_KM:
         warnings.append(
             "SpotCast has no local guide for this place: check local dangers."
+        )
+    elif not spot.supports(profile.sport):
+        warnings.append(f"{spot.name} is not known as a place for {profile.sport}.")
+    if hours["shore_facing"].isna().all():
+        warnings.append(
+            "Unknown shore direction here: offshore wind (blowing from the land out to "
+            "sea, it pushes you away from the shore) could not be checked."
+        )
+    elif daylight_offshore and sheltered:
+        warnings.append(
+            f"Offshore wind (from the land) in {daylight_offshore} daylight hours. This is "
+            "a sheltered bay: if you drift, you reach another shore of the bay, not the "
+            "open sea, so these hours are not marked unsafe for that reason. Offshore wind "
+            "is still gusty and stronger further out: stay inside the bay."
+        )
+    elif daylight_offshore:
+        warnings.append(
+            f"Offshore wind (from the land out to sea) in {daylight_offshore} daylight "
+            "hours: it pushes you away from the shore."
         )
     ahead = days_ahead(day, current_time)
     if note := lead_time_note(ahead):
@@ -291,6 +318,7 @@ def assess_day(
                 "wave_metres": None
                 if pd.isna(row.wave_height)
                 else round(row.wave_height, 2),
+                "shore_wind": shore_wind(row.wind_direction_10m, row.shore_facing),
                 "label": row.prediction,
             }
             for row in daylight.itertuples()

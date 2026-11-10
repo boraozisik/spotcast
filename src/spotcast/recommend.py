@@ -12,6 +12,7 @@ from datetime import date, datetime
 
 import pandas as pd
 
+from spotcast.locations import LOCATIONS
 from spotcast.profiles import ActivityProfile
 
 # How much one hour is worth. "bad" hours are never part of a window.
@@ -105,7 +106,12 @@ def recommend(
     prefs: Preferences,
     top: int = 5,
 ) -> pd.DataFrame:
-    """The best windows, highest total score first (more and better hours win)."""
+    """The best windows, highest total score first (more and better hours win).
+
+    Known spots where this sport isn't done (locations.toml `sports`) are left out.
+    """
+    not_for_sport = {loc.name for loc in LOCATIONS if not loc.supports(profile.sport)}
+    predicted = predicted[~predicted["spot"].isin(not_for_sport)]
     windows = find_windows(predicted, profile, prefs)
     return windows.sort_values(["score", "start"], ascending=[False, True]).head(top)
 

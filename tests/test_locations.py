@@ -3,6 +3,7 @@
 import pytest
 from sqlalchemy import create_engine, func, select
 
+from spotcast.data import spots_fingerprint
 from spotcast.locations import (
     LOCATIONS,
     PLACES,
@@ -40,6 +41,18 @@ def test_every_spot_guide_exists_and_names_the_spot(spot):
     assert path.exists(), f"{spot.name}: guide file {spot.guide} is missing"
     meta, _ = parse_front_matter(path.read_text(encoding="utf-8"))
     assert meta.get("spot") == spot.name
+
+
+def test_every_location_knows_its_shore_direction():
+    """Without it the offshore rule silently does nothing there."""
+    missing = [loc.name for loc in LOCATIONS if loc.shore_facing is None]
+    assert missing == []
+
+
+def test_history_cache_name_changes_when_a_spot_moves():
+    moved = [SPOTS[0].model_copy(update={"latitude": SPOTS[0].latitude + 0.01})]
+    assert spots_fingerprint(SPOTS[:1]) != spots_fingerprint(moved)
+    assert spots_fingerprint(SPOTS) == spots_fingerprint(list(SPOTS))
 
 
 # --- Validation ---

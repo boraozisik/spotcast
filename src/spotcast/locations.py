@@ -10,11 +10,13 @@ The database table `locations` is a copy for SQL queries: `uv run spotcast-sync-
 The website job and the tests read the file, so they never need a database.
 """
 
+import math
 import tomllib
 from pathlib import Path
 
-from pydantic import BaseModel, ConfigDict, Field, ValidationError
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
 from sqlalchemy import (
+    Boolean,
     CheckConstraint,
     Column,
     Engine,
@@ -26,6 +28,8 @@ from sqlalchemy import (
     insert,
     select,
 )
+
+from spotcast.profiles import SPORTS
 
 LOCATIONS_FILE = Path(__file__).with_name("locations.toml")
 
@@ -40,10 +44,29 @@ class Location(BaseModel):
     latitude: float = Field(ge=-90, le=90)
     longitude: float = Field(ge=-180, le=180)
     guide: str | None = None  # file in knowledge/, e.g. "spots/alacati.md"
+    # Compass direction from the beach to the open water; decides when wind is offshore
+    shore_facing: float | None = Field(default=None, ge=0, lt=360)
+    # A closed bay: offshore wind pushes you across the bay to another shore, not out to
+    # the open sea, so offshore hours are not unsafe by themselves here (always explained
+    # in a warning). Max wind, max waves and darkness still apply.
+    sheltered: bool = False
+    # Sports done here. None: we don't know (no local guide), so none is excluded
+    sports: tuple[str, ...] | None = Field(default=None, strict=False)
+
+    @field_validator("sports")
+    @classmethod
+    def _known_sports(cls, value: tuple[str, ...] | None) -> tuple[str, ...] | None:
+        unknown = sorted(set(value or ()) - set(SPORTS))
+        if unknown:
+            raise ValueError(f"unknown sports {unknown}; known: {', '.join(SPORTS)}")
+        return value
 
     @property
     def is_spot(self) -> bool:
         return self.guide is not None
+
+    def supports(self, sport: str) -> bool:
+        return self.sports is None or sport in self.sports
 
 
 class CatalogError(ValueError):
@@ -81,6 +104,27 @@ def load_locations(path: Path = LOCATIONS_FILE) -> list[Location]:
 LOCATIONS = load_locations()
 SPOTS = [loc for loc in LOCATIONS if loc.is_spot]
 PLACES = [loc for loc in LOCATIONS if not loc.is_spot]
+BY_NAME = {loc.name: loc for loc in LOCATIONS}
+
+
+def spots_for(sport: str) -> list[Location]:
+    """Guided spots where this sport is done."""
+    return [spot for spot in SPOTS if spot.supports(sport)]
+
+
+def location_near(
+    latitude: float, longitude: float, max_km: float = 2.0
+) -> Location | None:
+    """A known location this close, else None. Its shore direction and shelter only hold
+    for that stretch of coast, so the radius is small."""
+    lat_km, lon_km = 111.32, 111.32 * math.cos(math.radians(latitude))
+    for loc in LOCATIONS:
+        km = math.hypot(
+            (loc.latitude - latitude) * lat_km, (loc.longitude - longitude) * lon_km
+        )
+        if km <= max_km:
+            return loc
+    return None
 
 
 # --- Database copy ---
@@ -104,6 +148,9 @@ locations_table = Table(
         nullable=False,
     ),
     Column("guide", String),  # NULL: a place without a local guide
+    Column("shore_facing", Float),
+    Column("sheltered", Boolean, nullable=False),
+    Column("sports", String),  # comma-separated; NULL: unknown
 )
 
 
@@ -117,7 +164,11 @@ def sync_to_db(engine: Engine, locations: list[Location]) -> int:
     with engine.begin() as conn:
         locations_table.drop(conn, checkfirst=True)
         locations_table.create(conn)
-        conn.execute(insert(locations_table), [loc.model_dump() for loc in locations])
+        rows = [
+            loc.model_dump() | {"sports": ",".join(loc.sports) if loc.sports else None}
+            for loc in locations
+        ]
+        conn.execute(insert(locations_table), rows)
     return len(locations)
 
 

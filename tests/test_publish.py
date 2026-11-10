@@ -22,13 +22,14 @@ class AlwaysGoodModel:
 BUNDLE = {"model": AlwaysGoodModel(), "features": FEATURES}
 
 
-def forecast(days=7, waves=True):
+def forecast(days=7, waves=True, wind_from=180):
     hours = pd.date_range("2026-11-05 00:00", periods=days * 24, freq="h")
     return pd.DataFrame(
         {
             "time": hours,
             "wind_speed_10m": 18.0,
-            "wind_direction_10m": 0,
+            # From the south: onshore at Mezitli (faces 160), so no offshore rule applies
+            "wind_direction_10m": wind_from,
             "is_day": hours.hour.isin(range(7, 18)),
             "wave_height": 0.5 if waves else np.nan,
             "wave_direction": 0,
@@ -44,6 +45,17 @@ def test_slug_is_safe_for_urls():
 
 def test_local_now_has_no_timezone_like_the_forecast():
     assert publish.local_now().tzinfo is None
+
+
+def test_offshore_wind_makes_every_hour_bad():
+    """At Mezitli (faces south) a northerly wind blows from the land out to sea: 18 kn is
+    above the 12 kn offshore limit of an intermediate windsurfer."""
+    place = publish.build_place(
+        "Mezitli sahili", "Mersin", 36.7341, 34.5304,
+        forecast(wind_from=0), WINDSURF_INTERMEDIATE, BUNDLE, NOW,
+    )  # fmt: skip
+    assert all(day["best_window"] is None for day in place["days"])
+    assert all(set(day["label_counts"]) == {"bad"} for day in place["days"])
 
 
 def test_place_has_seven_days_with_turkish_notes():

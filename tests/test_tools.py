@@ -103,11 +103,12 @@ def test_no_wave_data_means_no_verdict(monkeypatch):
 
 def test_far_ahead_day_gets_a_lead_time_warning(monkeypatch):
     monkeypatch.setattr(tools, "fetch_conditions", fake_forecast)
+    # Alaçatı itself: a known shore direction, so no "unknown shore" warning
     near = tools.check_conditions(
-        tools.CheckConditionsArgs(latitude=38.3, longitude=26.4, day="2026-11-07")
+        tools.CheckConditionsArgs(latitude=38.243, longitude=26.38, day="2026-11-07")
     )
     far = tools.check_conditions(
-        tools.CheckConditionsArgs(latitude=38.3, longitude=26.4, day="2026-11-10")
+        tools.CheckConditionsArgs(latitude=38.243, longitude=26.38, day="2026-11-10")
     )
 
     assert near["days_ahead"] == 2 and near["warnings"] == []

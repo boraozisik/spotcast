@@ -42,6 +42,7 @@ from spotcast.model import (
     training_table,
 )
 from spotcast.profiles import PROFILES, ActivityProfile
+from spotcast.shore import unsafe_offshore_flags
 from spotcast.versioning import code_version
 
 SETTLE_DAYS = 7  # ERA5 history is final only after ~5 days; wait a week to be safe
@@ -80,11 +81,12 @@ def score(
         truth = add_labels(holdout, profile)["label"].tolist()
         predicted = predict_with_guardrail(model, holdout, profile)
         unsafe = [
-            is_unsafe(profile, w, h, d)
-            for w, h, d in zip(
+            is_unsafe(profile, w, h, d, off)
+            for w, h, d, off in zip(
                 holdout["wind_speed_10m"],
                 holdout["wave_height"],
                 holdout["is_day"],
+                unsafe_offshore_flags(holdout),
                 strict=True,
             )
         ]

@@ -24,6 +24,7 @@ from sklearn.tree import DecisionTreeClassifier, export_text
 from spotcast.config import MODELS_DIR
 from spotcast.labels import add_labels, is_unsafe
 from spotcast.profiles import ActivityProfile
+from spotcast.shore import unsafe_offshore_flags
 
 # What the model sees: conditions measured against one profile's limits
 FEATURES = [
@@ -33,6 +34,7 @@ FEATURES = [
     "wind_over_max",  # wind - max_wind_kn (positive: unsafe)
     "wave_over_good_max",  # wave - good_wave_max_m
     "wave_over_max",  # wave - max_wave_m (zero or positive: unsafe)
+    "offshore_over_max",  # offshore wind - max_offshore_wind_kn (positive: unsafe)
     "is_day",
 ]
 # Raw inputs whose training range is saved with the model, to notice data drift
@@ -45,6 +47,13 @@ CLASSES = ["bad", "marginal", "good"]  # fixed order for reports and matrices
 def make_features(conditions: pd.DataFrame, profile: ActivityProfile) -> pd.DataFrame:
     """The model's input for one profile: each condition minus the profile's limit."""
     wind, wave = conditions["wind_speed_10m"], conditions["wave_height"]
+    # Wind that blows from the land (outside a sheltered bay) counts here; else 0 kn
+    offshore_wind = wind.where(unsafe_offshore_flags(conditions), 0.0)
+    offshore_limit = (
+        profile.max_offshore_wind_kn
+        if profile.max_offshore_wind_kn is not None
+        else profile.max_wind_kn
+    )
     return pd.DataFrame(
         {
             "wind_over_min": wind - profile.min_wind_kn,
@@ -53,6 +62,7 @@ def make_features(conditions: pd.DataFrame, profile: ActivityProfile) -> pd.Data
             "wind_over_max": wind - profile.max_wind_kn,
             "wave_over_good_max": wave - profile.good_wave_max_m,
             "wave_over_max": wave - profile.max_wave_m,
+            "offshore_over_max": offshore_wind - offshore_limit,
             "is_day": conditions["is_day"],
         },
         index=conditions.index,
@@ -96,9 +106,14 @@ def train_baseline(X_train: pd.DataFrame, y_train: pd.Series) -> DummyClassifier
 
 
 def train_tree(
-    X_train: pd.DataFrame, y_train: pd.Series, max_depth: int = 5
+    X_train: pd.DataFrame, y_train: pd.Series, max_depth: int = 7
 ) -> DecisionTreeClassifier:
-    """A decision tree: learns a chain of if/else questions from the data."""
+    """A decision tree: learns a chain of if/else questions from the data.
+
+    Depth 7 (measured in Stage 11, with the offshore rule): depth 5 reached macro F1 0.933
+    and had no room left for the good/marginal edge of SUP and kayak; 7 reaches 1.000 with
+    only 10 leaves, and deeper trees don't grow any further.
+    """
     tree = DecisionTreeClassifier(max_depth=max_depth, random_state=42)
     return tree.fit(X_train, y_train)
 
@@ -109,12 +124,13 @@ def predict_with_guardrail(
     """Model predictions for this profile, but unsafe conditions are always "bad"."""
     predictions = model.predict(make_features(conditions, profile))
     return [
-        "bad" if is_unsafe(profile, wind, wave, day) else prediction
-        for prediction, wind, wave, day in zip(
+        "bad" if is_unsafe(profile, wind, wave, day, offshore) else prediction
+        for prediction, wind, wave, day, offshore in zip(
             predictions,
             conditions["wind_speed_10m"],
             conditions["wave_height"],
             conditions["is_day"],
+            unsafe_offshore_flags(conditions),
             strict=True,
         )
     ]

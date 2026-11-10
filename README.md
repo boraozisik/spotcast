@@ -1,4 +1,4 @@
-# SpotCast
+# SpotcastAI
 
 **Is this spot right for my level, at this hour?**
 SpotcastAI is an AI-powered windsurf forecasting system for the Turkish coast. It turns raw wind
