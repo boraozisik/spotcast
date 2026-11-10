@@ -395,7 +395,7 @@ def recommend_spots(args: RecommendSpotsArgs) -> dict:
 
 # ---------- Tool 4: recommend_near (all known places around a point) ----------
 
-MAX_NEARBY = 8  # one forecast request per place, so keep it bounded
+MAX_NEARBY = 30  # all share one batched request (data.fetch_all_spots)
 
 
 class RecommendNearArgs(WhenArgs):

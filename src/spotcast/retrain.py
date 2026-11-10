@@ -29,7 +29,7 @@ import pandas as pd
 from spotcast.config import HISTORY_END, HISTORY_START, MODELS_DIR
 from spotcast.data import fetch_all_spots
 from spotcast.labels import add_labels, is_unsafe
-from spotcast.locations import SPOTS
+from spotcast.locations import TRAINING_LOCATIONS
 from spotcast.model import (
     FEATURES,
     MONITORED_INPUTS,
@@ -167,7 +167,7 @@ def retrain(
         return report
     start, end = window
 
-    history = fetch(SPOTS, HISTORY_START, end)
+    history = fetch(TRAINING_LOCATIONS, HISTORY_START, end)
     day = history["time"].dt.date
     train, holdout = history[day < start], history[day >= start]
     table = training_table(train, profiles)

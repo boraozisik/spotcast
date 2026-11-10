@@ -50,6 +50,10 @@ class Location(BaseModel):
     # the open sea, so offshore hours are not unsafe by themselves here (always explained
     # in a warning). Max wind, max waves and darkness still apply.
     sheltered: bool = False
+    # Include this place's history in model training (guided spots always are). One per
+    # sea, so the model sees Black Sea swell and open Mediterranean waves, not only the
+    # Aegean. Each adds ~250 API calls to a training run: keep the list short.
+    train: bool = False
     # Sports done here. None: we don't know (no local guide), so none is excluded
     sports: tuple[str, ...] | None = Field(default=None, strict=False)
 
@@ -64,6 +68,10 @@ class Location(BaseModel):
     @property
     def is_spot(self) -> bool:
         return self.guide is not None
+
+    @property
+    def in_training(self) -> bool:
+        return self.is_spot or self.train
 
     def supports(self, sport: str) -> bool:
         return self.sports is None or sport in self.sports
@@ -104,6 +112,8 @@ def load_locations(path: Path = LOCATIONS_FILE) -> list[Location]:
 LOCATIONS = load_locations()
 SPOTS = [loc for loc in LOCATIONS if loc.is_spot]
 PLACES = [loc for loc in LOCATIONS if not loc.is_spot]
+# Whose history trains the suitability model: the spots first, then one place per sea
+TRAINING_LOCATIONS = SPOTS + [loc for loc in PLACES if loc.train]
 BY_NAME = {loc.name: loc for loc in LOCATIONS}
 
 
@@ -174,6 +184,7 @@ locations_table = Table(
     Column("guide", String),  # NULL: a place without a local guide
     Column("shore_facing", Float),
     Column("sheltered", Boolean, nullable=False),
+    Column("train", Boolean, nullable=False),
     Column("sports", String),  # comma-separated; NULL: unknown
 )
 

@@ -116,7 +116,6 @@ def test_bad_data_never_overwrites_published_files(tmp_path, monkeypatch):
         "fetch_all_spots",
         lambda spots: pd.concat(broken.assign(spot=s.name) for s in spots),
     )
-    monkeypatch.setattr(publish, "fetch_conditions", lambda lat, lon: broken)
 
     with pytest.raises(monitoring.DataQualityError):
         publish.publish(out)

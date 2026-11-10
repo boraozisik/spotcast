@@ -17,6 +17,9 @@
 #              not marked unsafe for that reason alone; every answer explains it in a
 #              warning. Max wind, max waves and darkness still apply. Set it only where
 #              someone who knows the place confirms it.
+#   train      optional, default false: use this place's history to train the model (the
+#              guided spots always are). One place per sea; each costs ~250 API calls per
+#              training run (Open-Meteo's free limit is 5,000 an hour), so keep it short.
 #   sports     optional: the sports done here. Without it no sport is excluded (we don't
 #              know); recommendations skip spots whose list doesn't have the sport.
 #
@@ -72,6 +75,7 @@ region = "Mersin"
 latitude = 36.7341
 longitude = 34.5304
 shore_facing = 160
+train = true  # eastern Mediterranean
 
 [[location]]
 name = "Karataş"
@@ -121,6 +125,7 @@ region = "Antalya"
 latitude = 36.195
 longitude = 29.6402
 shore_facing = 205
+train = true  # open western Mediterranean: longer swell
 
 [[location]]
 name = "Fethiye Çalış"
@@ -198,6 +203,7 @@ region = "Çanakkale"
 latitude = 39.8438
 longitude = 26.0377
 shore_facing = 350
+train = true  # northern Aegean: windy
 
 [[location]]
 name = "Gökçeada Aydıncık"
@@ -212,6 +218,7 @@ region = "İstanbul"
 latitude = 41.2581
 longitude = 29.0355
 shore_facing = 330
+train = true  # western Black Sea
 
 [[location]]
 name = "Şile"
@@ -233,6 +240,7 @@ region = "Sinop"
 latitude = 42.0179
 longitude = 35.159
 shore_facing = 200
+train = true  # central Black Sea
 
 [[location]]
 name = "Atakum"
@@ -247,3 +255,4 @@ region = "Trabzon"
 latitude = 41.0153
 longitude = 39.7202
 shore_facing = 0
+train = true  # eastern Black Sea

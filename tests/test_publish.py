@@ -136,6 +136,8 @@ def test_fetch_retries_a_dropped_connection(monkeypatch):
     calls = []
 
     class Ok:
+        status_code = 200
+
         def raise_for_status(self):
             pass
 

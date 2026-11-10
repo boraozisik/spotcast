@@ -7,7 +7,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from spotcast.config import HISTORY_END, HISTORY_START, HISTORY_TABLE
 from spotcast.data import fetch_all_spots, load_history
 from spotcast.db import get_engine, save_to_db
-from spotcast.locations import SPOTS
+from spotcast.locations import SPOTS, TRAINING_LOCATIONS
 from spotcast.model import (
     FEATURES,
     MONITORED_INPUTS,
@@ -38,7 +38,8 @@ def main() -> None:
     pd.set_option("display.width", None)  # use the full terminal width when printing
 
     try:
-        history = load_history(HISTORY_START, HISTORY_END)
+        # The spots plus one place per sea (locations.toml `train`)
+        history = load_history(HISTORY_START, HISTORY_END, locations=TRAINING_LOCATIONS)
     except requests.RequestException as error:
         print(f"Could not fetch data: {error}")
         return

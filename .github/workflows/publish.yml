@@ -24,7 +24,7 @@ concurrency:
 jobs:
   publish:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 25 # training (when no model is cached) fetches ~6 min of paced history
     steps:
       - uses: actions/checkout@v5
 

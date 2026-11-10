@@ -26,8 +26,8 @@ import pandas as pd
 import requests
 
 from spotcast.config import HISTORY_END, HISTORY_START, TIMEZONE
-from spotcast.data import fetch_all_spots, fetch_conditions
-from spotcast.locations import PLACES, SPOTS
+from spotcast.data import fetch_all_spots
+from spotcast.locations import PLACES, SPOTS, TRAINING_LOCATIONS, Location
 from spotcast.model import (
     FEATURES,
     MONITORED_INPUTS,
@@ -82,7 +82,7 @@ def ensure_model(retrain: bool = False) -> dict[str, Any]:
         except FileNotFoundError:
             pass
     print("Training the model from history...")
-    history = fetch_all_spots(SPOTS, HISTORY_START, HISTORY_END)
+    history = fetch_all_spots(TRAINING_LOCATIONS, HISTORY_START, HISTORY_END)
     profiles = list(PROFILES.values())
     table = training_table(history, profiles)
     save_model(
@@ -249,6 +249,31 @@ def write_json(path: Path, data: Any) -> None:
     )
 
 
+def fetch_places(places: list[Location]) -> tuple[dict[str, pd.DataFrame], list[str]]:
+    """Forecasts for all places in one batched request (2 HTTP calls for 26 places).
+
+    If that fails, fall back to one place at a time, so a single unreachable place can
+    never take the whole site down. Returns the forecasts by name and the skipped names.
+    """
+    try:
+        everything = fetch_all_spots(places)
+        return {
+            name: rows.drop(columns="spot")
+            for name, rows in everything.groupby("spot", sort=False)
+        }, []
+    except requests.RequestException as error:
+        print(f"  batched request failed ({error}); fetching place by place")
+
+    found, skipped = {}, []
+    for place in places:
+        try:
+            found[place.name] = fetch_all_spots([place]).drop(columns="spot")
+        except requests.RequestException as error:
+            print(f"  skipped {place.name}: {error}")
+            skipped.append(place.name)
+    return found, skipped
+
+
 def publish(out: Path, retrain: bool = False) -> None:
     profile = get_profile(SPORT, LEVEL)
     bundle = ensure_model(retrain)
@@ -268,20 +293,14 @@ def publish(out: Path, retrain: bool = False) -> None:
                         forecast, profile, bundle, now)
         )  # fmt: skip
     print(f"Fetching and assessing {len(PLACES)} places...")
-    skipped = []
-    fetched = [spot_forecast]  # every hourly row, for the quality report
+    forecasts, skipped = fetch_places(PLACES)
+    fetched = [spot_forecast, *forecasts.values()]  # every hourly row, for the report
     for place in PLACES:
-        try:
-            forecast = fetch_conditions(place.latitude, place.longitude)
-        except requests.RequestException as error:
-            # One unreachable place must not take the whole site down
-            print(f"  skipped {place.name}: {error}")
-            skipped.append(place.name)
+        if place.name not in forecasts:
             continue
-        fetched.append(forecast)
         places.append(
             build_place(place.name, place.region, place.latitude, place.longitude,
-                        forecast, profile, bundle, now)
+                        forecasts[place.name], profile, bundle, now)
         )  # fmt: skip
 
     # Check the data before anything is written: bad data must never replace good data
