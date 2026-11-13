@@ -10,7 +10,7 @@ FORECAST_URL = "https://api.open-meteo.com/v1/forecast"
 MARINE_URL = "https://marine-api.open-meteo.com/v1/marine"
 ARCHIVE_URL = "https://archive-api.open-meteo.com/v1/archive"
 TIMEZONE = "Europe/Istanbul"
-REQUEST_TIMEOUT_SECONDS = 10
+REQUEST_TIMEOUT_SECONDS = 20  # one request for 29 places takes longer than for one
 
 # Project root is two folders above this file: src/spotcast/config.py
 PROJECT_ROOT = Path(__file__).resolve().parents[2]

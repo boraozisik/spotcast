@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 
 // Where the batch job's JSON lives. In production: the `site-data` branch on GitHub,
-// refreshed every 6 hours. Locally: web/public/data (run `uv run spotcast-publish --out web/public/data`).
+// refreshed several times a day. Locally: web/public/data (run `uv run spotcast-publish --out web/public/data`).
 export const DATA_URL = (process.env.NEXT_PUBLIC_DATA_URL ?? "/data").replace(/\/$/, "");
 
 export type DataState<T> =

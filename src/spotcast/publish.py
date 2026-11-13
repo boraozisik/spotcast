@@ -1,7 +1,7 @@
 """Batch inference for the website: compute everything ahead of time, write JSON files.
 
     uv run spotcast-publish --out web/public/data     # local preview
-    (GitHub Actions runs it every 6 hours and pushes the files to the `site-data` branch)
+    (GitHub Actions runs it every 3 hours and pushes the files to the `site-data` branch)
 
 The website has no backend: it only reads these files. Nothing is open to the internet
 that could be abused, nothing sleeps, nothing costs money. The code that runs here is the

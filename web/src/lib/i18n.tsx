@@ -131,10 +131,10 @@ const en = {
     }
   },
   stale: (hours: number) =>
-    `This forecast is ${hours} hours old (it is normally refreshed every 6 hours). Conditions may have changed: check a current forecast before you go.`,
+    `This forecast is ${hours} hours old (it is normally refreshed several times a day). Conditions may have changed: check a current forecast before you go.`,
   loadError: {
     title: "Forecast data could not be loaded.",
-    body: "Data is refreshed every 6 hours. Please try again shortly.",
+    body: "Data is refreshed several times a day. Please try again shortly.",
   },
   footer: {
     disclaimer: "Forecasts are guidance only. Always check the conditions on site before going out.",
@@ -147,7 +147,7 @@ const en = {
     lead: "SpotCast evaluates wind and wave forecasts for windsurf, kitesurf, SUP and sea kayak with a machine learning model and strict safety rules, then picks the best time windows along the Turkish coast.",
     ctaPlace: "Check a location",
     ctaHow: "How it works",
-    updated: (time: string) => `Updated ${time} · refreshed every 6 hours`,
+    updated: (time: string) => `Updated ${time} · refreshed several times a day`,
     best: {
       title: "Best time windows",
       subtitle: "Guided spots where this sport is done, next 7 days, at least 2 hours between 09:00 and 18:00.",
@@ -251,7 +251,7 @@ const en = {
     lead: "SpotCast combines a data pipeline, classical machine learning, deep learning, large language models and automated evaluation in one system.",
     pipelineTitle: "Data pipeline",
     pipeline: [
-      "Forecasts are computed by a scheduled batch job every 6 hours and published as static data. The site has no backend: nothing to attack, nothing that can go down.",
+      "Forecasts are computed by a scheduled batch job several times a day and published as static data. The site has no backend: nothing to attack, nothing that can go down.",
       "Live on this site: recommendations, hourly forecasts and assessments for 29 coastal places, for 4 sports at 3 levels each. One model serves all 12 profiles; the same safety rules, including offshore wind, apply everywhere.",
       "The assistant runs on a locally hosted LLM; its conversations are shown on the Assistant page.",
     ],
@@ -311,10 +311,10 @@ const tr: Dictionary = {
     }
   },
   stale: (hours: number) =>
-    `Bu tahmin ${hours} saat önce üretildi (normalde 6 saatte bir yenilenir). Koşullar değişmiş olabilir: gitmeden önce güncel bir tahmine bak.`,
+    `Bu tahmin ${hours} saat önce üretildi (normalde günde birkaç kez yenilenir). Koşullar değişmiş olabilir: gitmeden önce güncel bir tahmine bak.`,
   loadError: {
     title: "Tahmin verisi yüklenemedi.",
-    body: "Veriler 6 saatte bir yenileniyor. Lütfen biraz sonra tekrar dene.",
+    body: "Veriler günde birkaç kez yenileniyor. Lütfen biraz sonra tekrar dene.",
   },
   footer: {
     disclaimer: "Tahminler yol göstericidir. Suya girmeden önce koşulları sahilde mutlaka kontrol et.",
@@ -327,7 +327,7 @@ const tr: Dictionary = {
     lead: "SpotCast rüzgâr sörfü, uçurtma sörfü, SUP ve kano için rüzgâr ve dalga tahminlerini bir makine öğrenmesi modeli ve katı güvenlik kurallarıyla değerlendirir, Türkiye kıyılarındaki en iyi zaman aralıklarını seçer.",
     ctaPlace: "Bir konumu değerlendir",
     ctaHow: "Nasıl çalışır?",
-    updated: (time: string) => `Güncelleme: ${time} · 6 saatte bir yenilenir`,
+    updated: (time: string) => `Güncelleme: ${time} · günde birkaç kez yenilenir`,
     best: {
       title: "En iyi zaman aralıkları",
       subtitle: "Bu sporun yapıldığı rehberli spotlar, önümüzdeki 7 gün, 09:00-18:00 arası en az 2 saat.",
@@ -431,7 +431,7 @@ const tr: Dictionary = {
     lead: "SpotCast bir veri hattını, klasik makine öğrenmesini, derin öğrenmeyi, büyük dil modellerini ve otomatik değerlendirmeyi tek bir sistemde birleştirir.",
     pipelineTitle: "Veri hattı",
     pipeline: [
-      "Tahminler 6 saatte bir zamanlanmış bir toplu iş (batch job) tarafından hesaplanıp statik veri olarak yayınlanır. Sitenin backend'i yoktur: saldırılacak ya da çökecek bir sunucu bulunmaz.",
+      "Tahminler günde birkaç kez zamanlanmış bir toplu iş (batch job) tarafından hesaplanıp statik veri olarak yayınlanır. Sitenin backend'i yoktur: saldırılacak ya da çökecek bir sunucu bulunmaz.",
       "Bu sitede canlı olanlar: 29 kıyı noktası için öneriler, saatlik tahminler ve değerlendirmeler; 4 spor, her biri 3 seviyede. 12 profilin hepsine tek bir model hizmet eder; offshore rüzgâr dahil aynı güvenlik kuralları her yerde geçerlidir.",
       "Asistan yerel olarak barındırılan bir LLM üzerinde çalışır; konuşmaları Asistan sayfasında görülebilir.",
     ],

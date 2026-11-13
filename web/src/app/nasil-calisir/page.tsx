@@ -126,7 +126,7 @@ export default function HowItWorksPage() {
       <Card>
         <h2 className="text-xl font-semibold">{t.how.pipelineTitle}</h2>
         <pre className="mt-3 overflow-x-auto rounded-xl bg-slate-900 p-4 text-xs leading-relaxed text-slate-100">
-{`GitHub Actions (every 6 h):
+{`GitHub Actions (every 3 h):
    Open-Meteo forecast → ML model + guardrail → recommender → JSON
                                                                │
 Next.js site (Netlify) ◀── browser reads the JSON ◀────────────┘`}
