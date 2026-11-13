@@ -4,7 +4,9 @@ import { useState } from "react";
 
 import { useT } from "@/lib/i18n";
 
-const STALE_AFTER_HOURS = 12; // data is refreshed every 6 h: twice that means a run failed
+// The job is scheduled every 3 h, but GitHub may skip runs: 12 h means several were missed
+// or failed, worth telling the visitor.
+const STALE_AFTER_HOURS = 12;
 
 /** Hours since the batch job wrote the data. generated_at is Turkish local time, written
  * without a zone; Turkey is UTC+3 all year, so the age is right in any visitor's timezone. */

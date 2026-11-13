@@ -93,28 +93,36 @@ def _fetch_hourly(
     return frames
 
 
-RETRIES = 3
+# Waits between attempts, longer each time (5 attempts in all). On 13 Nov 2026 Open-Meteo
+# was slow for about half a minute; 3 quick attempts (1 s, 2 s) gave up and the site
+# missed an update. Now a slow minute or two is waited out.
+RETRY_WAITS_SECONDS = (2, 5, 15, 30)
 RATE_LIMIT_WAIT_SECONDS = 60
 
 
 def _get_with_retries(
-    url: str, params: dict, retries: int = RETRIES
+    url: str, params: dict, waits: tuple[float, ...] = RETRY_WAITS_SECONDS
 ) -> requests.Response:
-    """A slow or dropped connection is often a one-off: wait a little and try again
-    (1 s, then 2 s). "Too many requests" (HTTP 429): wait a minute and try again. Other
-    errors the server returns on purpose (HTTP 400) are not retried."""
-    for attempt in range(retries):
+    """Retry what is usually temporary: a slow or dropped connection and an overloaded
+    server (HTTP 5xx) after a growing wait, "too many requests" (HTTP 429) after a minute.
+    Errors the server returns on purpose (e.g. HTTP 400, a bad parameter) are not retried."""
+    for attempt in range(len(waits) + 1):
+        last = attempt == len(waits)
         try:
             response = requests.get(url, params=params, timeout=REQUEST_TIMEOUT_SECONDS)
-            if response.status_code == 429 and attempt < retries - 1:
-                time.sleep(RATE_LIMIT_WAIT_SECONDS)
-                continue
-            response.raise_for_status()
-            return response
         except (requests.ConnectionError, requests.Timeout):
-            if attempt == retries - 1:
+            if last:
                 raise
-            time.sleep(2**attempt)
+            time.sleep(waits[attempt])
+            continue
+        if response.status_code == 429 and not last:
+            time.sleep(RATE_LIMIT_WAIT_SECONDS)
+            continue
+        if response.status_code >= 500 and not last:
+            time.sleep(waits[attempt])
+            continue
+        response.raise_for_status()
+        return response
     raise AssertionError("unreachable")
 
 

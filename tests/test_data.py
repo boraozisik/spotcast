@@ -111,3 +111,39 @@ def test_training_locations_cover_several_seas():
     assert names[:3] == [s.name for s in SPOTS]  # spots first, in their fixed order
     assert {"Kilyos", "Sinop", "Trabzon", "Kaş"} <= set(names)
     assert len(names) <= 10  # each one costs ~250 API calls per training run
+
+
+def test_slow_server_is_waited_out_with_growing_pauses(monkeypatch):
+    """13 Nov 2026: Open-Meteo timed out for about half a minute and the job gave up."""
+    answers = [
+        data.requests.Timeout("handshake timed out"),
+        data.requests.Timeout("handshake timed out"),
+        FakeResponse({}, status=503),  # overloaded: also worth another try
+        FakeResponse({"hourly": {}}),
+    ]
+    waits = []
+
+    def fake_get(url, params, timeout):
+        answer = answers.pop(0)
+        if isinstance(answer, Exception):
+            raise answer
+        return answer
+
+    monkeypatch.setattr(data.requests, "get", fake_get)
+    monkeypatch.setattr(data.time, "sleep", waits.append)
+
+    assert data._get_with_retries("https://example", {}).status_code == 200
+    assert waits == [2, 5, 15]  # longer each time
+
+
+def test_a_bad_request_is_not_retried(monkeypatch):
+    calls = []
+    monkeypatch.setattr(
+        data.requests,
+        "get",
+        lambda *a, **k: calls.append(1) or FakeResponse({}, status=400),
+    )
+    monkeypatch.setattr(data.time, "sleep", lambda s: None)
+    with pytest.raises(data.requests.HTTPError):
+        data._get_with_retries("https://example", {})
+    assert len(calls) == 1

@@ -59,12 +59,12 @@ flowchart LR
     REC --> LLM
     LLM --> AG[Agent<br/>tool calling, LangGraph]
     AG --> MCP[MCP server]
-    REC --> PUB[Batch job<br/>GitHub Actions, every 6 h]
+    REC --> PUB[Batch job<br/>GitHub Actions, every 3 h]
     PUB --> SITE[Next.js on Netlify<br/>static, no backend]
 ```
 
 **The public website has no backend.** A scheduled GitHub Actions job runs the model, guardrail
-and recommender every six hours and publishes the results as JSON to the `site-data` branch. The
+and recommender every three hours and publishes the results as JSON to the `site-data` branch. The
 static Next.js site reads them in the browser. With no server, there is nothing to attack, nothing
 to go down and nothing to pay for (batch inference). The LLM components run on a locally hosted
 model; recorded assistant conversations are shown on the site.

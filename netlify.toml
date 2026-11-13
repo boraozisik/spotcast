@@ -1,6 +1,6 @@
 # Netlify: builds the Next.js site in web/ as plain static files.
 # The forecast data is NOT part of the build: the browser reads it from the `site-data`
-# branch on GitHub, which a scheduled workflow refreshes every 6 hours. So the site only
+# branch on GitHub, which a scheduled workflow refreshes several times a day. So the site only
 # needs a new deploy when the website code changes.
 
 [build]
