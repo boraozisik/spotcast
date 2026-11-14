@@ -226,3 +226,67 @@ def test_one_forecast_gives_different_verdicts_per_profile():
     # 18 kn: fine for an intermediate windsurfer, above the 10 kn limit of a beginner SUP
     assert windsurf["label_counts"].get("good")
     assert set(sup["label_counts"]) == {"bad"}
+
+
+@pytest.fixture
+def github_files(tmp_path, monkeypatch):
+    """Fake GitHub Actions output and summary files."""
+    output, summary = tmp_path / "output", tmp_path / "summary"
+    monkeypatch.setenv("GITHUB_OUTPUT", str(output))
+    monkeypatch.setenv("GITHUB_STEP_SUMMARY", str(summary))
+    monkeypatch.setattr(
+        "sys.argv", ["spotcast-publish", "--out", str(tmp_path / "out")]
+    )
+    return output, summary
+
+
+def unreachable(out, retrain=False):
+    raise publish.requests.ReadTimeout("api.open-meteo.com: handshake timed out")
+
+
+def test_unreachable_api_with_fresh_site_data_is_only_a_warning(
+    monkeypatch, github_files
+):
+    output, summary = github_files
+    monkeypatch.setattr(publish, "publish", unreachable)
+    monkeypatch.setattr(publish, "published_age_hours", lambda now: 5.0)
+
+    publish.main()  # no exception: the run ends green
+
+    assert output.read_text() == "published=false\n"
+    assert "keeps its data from 5 hours ago" in summary.read_text()
+
+
+def test_unreachable_api_with_stale_site_data_fails(monkeypatch, github_files):
+    monkeypatch.setattr(publish, "publish", unreachable)
+    monkeypatch.setattr(publish, "published_age_hours", lambda now: 13.0)
+
+    with pytest.raises(publish.requests.ReadTimeout):
+        publish.main()  # visitors see an old forecast now: fail loudly
+
+
+def test_unknown_site_data_age_fails(monkeypatch, github_files):
+    monkeypatch.setattr(publish, "publish", unreachable)
+    monkeypatch.setattr(publish, "published_age_hours", lambda now: None)
+
+    with pytest.raises(publish.requests.ReadTimeout):
+        publish.main()
+
+
+def test_successful_run_says_published(monkeypatch, github_files):
+    output, _ = github_files
+    monkeypatch.setattr(publish, "publish", lambda out, retrain=False: None)
+    publish.main()
+    assert output.read_text() == "published=true\n"
+
+
+def test_age_of_the_live_data(monkeypatch):
+    class Answer:
+        def json(self):
+            return {"generated_at": "2026-11-14T10:00"}
+
+    monkeypatch.setenv("GITHUB_REPOSITORY", "owner/repo")
+    monkeypatch.setattr(publish.requests, "get", lambda url, timeout: Answer())
+    assert publish.published_age_hours(datetime(2026, 11, 14, 16, 30)) == 6.5
+    monkeypatch.delenv("GITHUB_REPOSITORY")
+    assert publish.published_age_hours(datetime(2026, 11, 14, 16, 30)) is None

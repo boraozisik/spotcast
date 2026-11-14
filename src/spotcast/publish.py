@@ -21,6 +21,7 @@ The weather is fetched once; only the verdicts differ per profile.
 
 import argparse
 import json
+import os
 from dataclasses import asdict
 from datetime import datetime
 from pathlib import Path
@@ -398,6 +399,38 @@ def publish(out: Path, retrain: bool = False) -> None:
     print(f"Wrote {out}: {total} KB in all, {one // 1024} KB per profile")
 
 
+# The same threshold as the website's "this forecast is old" notice
+# (web/src/components/StaleNotice.tsx)
+STALE_AFTER_HOURS = 12
+
+
+def published_age_hours(now: datetime) -> float | None:
+    """How old the data on the live site is. None if it can't be read (e.g. run locally)."""
+    repo = os.environ.get("GITHUB_REPOSITORY")
+    if not repo:
+        return None
+    url = f"https://raw.githubusercontent.com/{repo}/site-data/meta.json"
+    try:
+        generated_at = requests.get(url, timeout=20).json()["generated_at"]
+    except (requests.RequestException, ValueError, KeyError):
+        return None
+    return (now - datetime.fromisoformat(generated_at)).total_seconds() / 3600
+
+
+def _step_summary(text: str) -> None:
+    """Add text to the GitHub Actions run page (no-op outside GitHub Actions)."""
+    if path := os.environ.get("GITHUB_STEP_SUMMARY"):
+        with Path(path).open("a", encoding="utf-8") as file:
+            file.write(text)
+
+
+def _github_output(line: str) -> None:
+    """Tell later workflow steps what happened (no-op outside GitHub Actions)."""
+    if path := os.environ.get("GITHUB_OUTPUT"):
+        with Path(path).open("a", encoding="utf-8") as file:
+            file.write(line + "\n")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Write the website's data files.")
     parser.add_argument("--out", type=Path, default=Path("site-data"))
@@ -405,4 +438,23 @@ def main() -> None:
         "--retrain", action="store_true", help="Train a fresh model first"
     )
     args = parser.parse_args()
-    publish(args.out, args.retrain)
+    try:
+        publish(args.out, args.retrain)
+    except requests.RequestException as error:
+        # Alert on the symptom, not the cause: Open-Meteo is sometimes unreachable for a
+        # few minutes (twice in the evening of 13-14 Nov 2026, even after 5 patient
+        # attempts). The site keeps its last good data, and the next run usually works.
+        # A failed run (and an e-mail) is only worth it once visitors see stale data.
+        age = published_age_hours(local_now())
+        if age is None or age >= STALE_AFTER_HOURS:
+            raise
+        message = (
+            f"Open-Meteo did not answer ({type(error).__name__}). Nothing was published; "
+            f"the site keeps its data from {age:.0f} hours ago. This becomes a failure "
+            f"once that data is {STALE_AFTER_HOURS} hours old."
+        )
+        print(f"::warning::{message}")  # shown on the GitHub Actions run page
+        _step_summary(f"### Site data not refreshed\n\n- {message}\n")
+        _github_output("published=false")
+        return
+    _github_output("published=true")
