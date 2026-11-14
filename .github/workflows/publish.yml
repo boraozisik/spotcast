@@ -56,7 +56,11 @@ jobs:
             echo "No approved model yet: using the cached or freshly trained one."
           fi
 
+      # If Open-Meteo is unreachable while the live data is still fresh (< 12 h), this
+      # step ends green with a warning and published=false; it fails (and e-mails) only
+      # once the site's data is stale, or on bad data.
       - name: Compute the site data
+        id: compute
         run: uv run --no-sync spotcast-publish --out site-data
         env:
           TZ: Europe/Istanbul
@@ -64,6 +68,7 @@ jobs:
       # A fresh one-commit branch each time: the branch holds only the latest data,
       # so it never grows
       - name: Push to the site-data branch
+        if: steps.compute.outputs.published == 'true'
         working-directory: site-data
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
